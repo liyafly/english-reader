@@ -1,0 +1,16 @@
+{
+  "title": "The Wind in the Willows",
+  "author": "Kenneth Grahame",
+  "unit": "章",
+  "units": [
+    {"n": 1, "title": "The River Bank", "mode": "精读"},
+    {"n": 2, "title": "The Open Road"}
+  ],
+  "level": "B1",
+  "genre": "小说",
+  "default_mode": "轻读",
+  "appreciation": true,
+  "writing": true,
+  "fonts": null,
+  "dictionaries": []
+}

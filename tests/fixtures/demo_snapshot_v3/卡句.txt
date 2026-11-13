@@ -1,0 +1,8 @@
+# 读的时候卡住的句子。一行一句；只贴开头几个词也行（4 个词以上）。
+# 行尾可以加：｜词都认识   或   ｜有生词   或   ｜有生词：voluble, fatigues
+# 用一行“第 2 章”说明下面的句子在哪一章；不写就全书找。
+
+第 2 章
+The old grey horse, dreaming, as he plodded along, of his quiet paddock, in a new raw situation such as this, simply abandoned himself to his natural emotions. ｜词都认识
+Naturally a voluble animal, and always mastered by his imagination ｜有生词：voluble
+you'll have to go straight to the police-station and see if they know

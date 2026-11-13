@@ -1,0 +1,12 @@
+# 读的时候卡住的句子。一行一句；只贴开头几个词也行（4 个词以上）。
+# 行尾可以加：｜词都认识   或   ｜有生词   或   ｜有生词：voluble, fatigues
+# 用一行“第 2 章”说明下面的句子在哪一章；不写就全书找。
+# 测试夹具（原文是 原文.txt，放在第 1 章）：依次是命中、多处、近似、找不到、太短、直引号各一行。
+
+第 1 章
+- The Mole was bewitched, entranced, fascinated. ｜有生词：bewitched, entranced
+the bottom of the boat
+As he gazed, something bright and smal seemed to twinkle down in the hart of it
+The Mole flew straight to the moon and never came back ｜词都认识
+Onion-sauce!
+"Oh, it's all very well to talk," said the Mole rather pettishly |词都认识

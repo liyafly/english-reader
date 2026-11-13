@@ -1,0 +1,16 @@
+# 第三版句子块「- **结构**：」能用的标签。build.py check 读这份文件（标签只能用第一列的字样），难句本按这里的行序分组。
+# 每行：标签<TAB>定义<TAB>读法<TAB>例句（出处）。# 开头的行是注释；第一行不是注释的是表头。例句出自 demo 的原文。词汇只给卡句用，单独用，不进难句本的分组。
+标签	定义	读法	例句
+主谓隔开	主语和谓语之间插了长修饰，谓语来得晚	先跳过逗号之间的部分，找到谓语再回头	The old grey horse, dreaming, as he plodded along, of his quiet paddock, …, simply abandoned himself to his natural emotions.（第 2 章）
+it 占位	it 先占住主语或宾语的位置，真的在后面（形式主语、形式宾语）	看到 it is hard、it seems、find it，往后找 that 或 to	it soon seemed taken for granted by all three of them that the trip was a settled thing（第 2 章）
+后置修饰	名词后面跟一串修饰，一层套一层	从中心词往后一层层剥，每层只管它前面那个名词	the steep little tunnel which answered in his case to the gravelled carriage-drive owned by animals whose residences are nearer to the sun and air（第 1 章）
+多层从句	从句里还有从句	一个引导词开一层，先把最外面一层读完	see if they know anything about that motorcar and who it belongs to（第 2 章）
+非谓语	doing、done、to do 短语作状语或补语	找它的动作是谁发出的，通常是主句的主语	Rearing, plunging, backing steadily, …, he drove the cart backward towards the deep ditch（第 2 章）
+独立结构	分词自己带主语，不借主句的	名词加分词，当成一个小句子读	a slow train having landed them at a station not very far from Toad Hall, they escorted …（第 2 章）
+插入	逗号、破折号、括号之间插进来的话	先拿掉再读，读通了再放回去	the Rat, though still unconvinced in his mind, allowed his good-nature to override his personal objections（第 2 章）
+并列	几个谓语或几个分句并排	找 and、or、but 和逗号，看清谁和谁并排	they escorted … Toad to his door, put him inside it, and instructed his housekeeper to feed him, undress him, and put him to bed（第 2 章）
+省略	省掉了能补出来的词（be、重复的动词），补出来才通	把缺的词补上再读	Panels and windows smashed, axles hopelessly bent, one wheel off（第 2 章，省了 were）
+倒装	谓语或助动词跑到主语前面	还原成正常语序再读	How black was his despair when he felt himself sinking again!（第 1 章）
+固定框架	两个词隔着一段话相互呼应：so … that、not so much … as，强调句 it was … that	看到前一半，往后找后一半	it was not till the afternoon that they came out on the high road（第 2 章）
+指代	代词指什么要回前文找	往前找最近的、数和意思都对得上的名词	He has got a new craze, and it always takes him that way, in its first stage.（第 2 章）
+词汇	结构不难，读者卡在词上（只用在卡句上，单独用，不进难句本）	先看注里的词，再顺着读一遍	The Mole was bewitched, entranced, fascinated.（第 1 章）
