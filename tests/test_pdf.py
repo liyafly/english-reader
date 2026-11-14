@@ -373,6 +373,15 @@ class TestV3Light(PdfBase):
         self.assertEqual(where, sorted(where))
         self.assertNotIn(self.b.EXTRA, self.page.split("</style>")[1])
 
+    def test_overview_spacing_follows_quote(self):
+        """整句骨架照原句的空白连行：破折号贴字的不加空格。"""
+        s = {"quote": "It wavered an instant—then there was a crash.",
+             "chunks": [{"md": "**It** **wavered** an instant—"}, {"md": "then there was a crash."}]}
+        self.assertEqual(self.b.overview_html(s), '<p class="ov"><b class="core">It</b> <b class="core">wavered</b> '
+                                                  'an instant—then there was a crash.</p>')
+        s = {"quote": "He ran, and she sat.", "chunks": [{"md": "He ran,"}, {"md": "and she sat."}]}
+        self.assertEqual(self.b.overview_html(s), '<p class="ov">He ran, and she sat.</p>')
+
     def test_overview_in_answers(self):
         """答案区：精讲句的整句骨架（断句表连回整句，粗体照排）排在译前面；练习句没有。"""
         ans = self.post.split('<div class="ah">长难句 · 整句和译</div>', 1)[1].split('<div class="ah">理解</div>')[0]

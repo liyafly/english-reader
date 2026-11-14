@@ -2254,8 +2254,11 @@ def check_post_length_v3(ch, rules, hint):
     if not est:
         return
     pages, cap = round(post_estimate_v3(ch, est), 1), int((lr.get("pdf") or {}).get("post_pages", 3))
+    near = float(est.get("接近上限", 0.3))
     if pages > cap:
         hint("篇幅", f"估计读后约 {pages} 页，上限 {cap} 页；估计和实排差 0.1 页上下，以 PDF 实排为准")
+    elif pages >= cap - near:
+        hint("篇幅", f"估计读后约 {pages} 页，接近上限 {cap} 页：断句表整张不跨页，实排可能多出一页，以 PDF 实排为准")
 
 
 def tag_table(md):
@@ -2902,7 +2905,16 @@ def sent3_html(n, s, tight=0, pid="s", trans_out=False):
 
 def overview_html(s):
     """整句一眼看全：断句表各行连起来，粗体（主语、谓语）照 b.core 排，其余灰一档。排在答案区，不剧透「试」。"""
-    return '<p class="ov">' + " ".join(chunk_html(c["md"]) for c in s["chunks"]) + "</p>"
+    out, pos, quote = [], 0, s["quote"]
+    for k, c in enumerate(s["chunks"]):
+        text = c["md"].replace("**", "")
+        while k and pos < len(quote) and quote[pos].isspace():      # 行与行之间照原句：原句有空白才空一格（破折号贴字的不空）
+            pos += 1
+        if k and quote[pos - 1].isspace():
+            out.append(" ")
+        out.append(chunk_html(c["md"]))
+        pos += len(text)
+    return '<p class="ov">' + "".join(out) + "</p>"
 
 
 def trans_v3(s):
@@ -3837,8 +3849,16 @@ p.reread{font:7.8pt/1.5 var(--sans);color:var(--soft);letter-spacing:.04em;margi
 .post .sth{margin-bottom:1.8mm}
 ol.lt .qt{font-family:var(--kai);color:#2c3535}
 ol.lt .qt p+p{margin-top:.6mm}
-ol.lt .qt p.ov{font:9.4pt/1.55 var(--en);color:var(--mute);margin-bottom:1mm}
+ol.lt .qt p.ov{font:9.4pt/1.55 var(--en);color:var(--soft);margin-bottom:1mm}
 ol.lt .qt p.ov b.core{font-weight:600;color:#132020}
+/* 只有一步：不印圈号和竖线，免得和断句表的 ① 撞号 */
+ol.steps:has(li:only-child)::before,ol.steps li:only-child::before{display:none}
+ol.steps li:only-child{padding-left:0}
+/* 答案区排紧（读后排紧时跟着收一档） */
+.post.tight .lans p.ov{font-size:9pt;line-height:1.45}
+.post.tight .lans ol.al{line-height:1.48}
+.post.tight .lans ol.al li{margin-bottom:1mm}
+.post.tight p.rref{font-size:9pt;line-height:1.45}
 /* 排紧 */
 .post.tight .ce{line-height:1.36;padding-top:.5mm;padding-bottom:.5mm}
 .post.tight .cz{line-height:1.42;padding-top:.6mm;padding-bottom:.5mm}

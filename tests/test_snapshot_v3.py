@@ -43,7 +43,8 @@ class TestSnapshotV3(unittest.TestCase):
         code, out = self.out["check"]
         self.assertEqual(code, 0, out)
         self.assertIn("问题 0 个", out)
-        self.assertIn("提示 2 个", out)
+        self.assertIn("提示 3 个", out)
+        self.assertIn("第 2 章 篇幅：估计读后约 3.0 页，接近上限 3 页", out)
 
     def test_outputs_identical(self):
         for cmd in ("md", "sentences", "words"):
