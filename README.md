@@ -24,10 +24,10 @@
 
 ```
 # 办法一：直接 clone 到自己的 skill 目录
-git clone <仓库地址> ~/.claude/skills/english-reader
+git clone https://github.com/liyafly/english-reader.git ~/.claude/skills/english-reader
 
 # 办法二：clone 到任意位置，再用安装脚本建一个软链接过去（macOS、Linux）
-git clone <仓库地址> && cd english-reader && ./install.sh
+git clone https://github.com/liyafly/english-reader.git && cd english-reader && ./install.sh
 # 卸载：./install.sh --remove
 ```
 
