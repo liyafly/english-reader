@@ -285,7 +285,7 @@
       "  notes：「注」的条数 [最少, 最多]；note_chars：每条释义的字数上限。",
       "  answer_words：「答」的英文词数上限。",
       "  try_chars：「试」的字数上限，轻读、精读共用。算法同 max_chars。",
-      "  steps_intensive：精读单元「怎么拆」的步数 [最少, 最多]（第三版轻读不写怎么拆）。",
+      "  steps_intensive：精读单元「怎么拆」的步数 [最少, 最多]。steps_light：轻读精讲句「怎么拆」的步数（可以不写；练习句、卡句不写）。",
       "  min_words：按读者水平（设置.json 的 level），长难句词数低于它是提示；卡句是读者自己记的，不查。",
       "  tag_variety：一个单元的长难句有 min_sentences 句以上时，主标签（结构的第一个）少于 min_tags 种是提示。",
       "v3.light：第三版的轻读单元。",
@@ -321,6 +321,10 @@
       "steps_intensive": [
         1,
         5
+      ],
+      "steps_light": [
+        1,
+        2
       ],
       "min_words": {
         "A2": 18,

@@ -367,11 +367,18 @@ class TestV3Light(PdfBase):
         # 读前一页 → 读后（长难句、理解、词的用法、复述）→ 答案区 → 卡句另起一页
         marks = ['<section class="pre"', '<h2 class="sk">长难句</h2>', '<p class="reread">', '<h2 class="sk">理解</h2>',
                  '<h2 class="sk">词的用法</h2>', '<h2 class="sk" id="c1-retell">复述</h2>', '<div class="lans"',
-                 '<div class="ah">长难句 · 译</div>', '<div class="ah">理解</div>',
+                 '<div class="ah">长难句 · 整句和译</div>', '<div class="ah">理解</div>',
                  '<section class="post stuck" style="page:c1-stuck" id="c1-extra">', '<h2 class="sk">卡句</h2>']
         where = [self.unit.index(m) for m in marks]
         self.assertEqual(where, sorted(where))
         self.assertNotIn(self.b.EXTRA, self.page.split("</style>")[1])
+
+    def test_overview_in_answers(self):
+        """答案区：精讲句的整句骨架（断句表连回整句，粗体照排）排在译前面；练习句没有。"""
+        ans = self.post.split('<div class="ah">长难句 · 整句和译</div>', 1)[1].split('<div class="ah">理解</div>')[0]
+        self.assertEqual(ans.count('<p class="ov">'), 2)
+        self.assertIn('<p class="ov"><b class="core">It</b> <b class="core">was</b> small wonder,', ans)
+        self.assertLess(ans.index('<p class="ov">'), ans.index("</p><p>"))
 
     def test_grid(self):
         self.assertEqual(self.post.count('<div class="cg keep">'), 4)

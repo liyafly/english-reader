@@ -41,7 +41,7 @@
 第一、二版的轻读单元：读前一页；读后从新页起，理解、长难句、词的用法、复述、补充句（有才排）接着排，最后是答案。
   读前超过一页、读后（不含答案）超过 rules.json 的上限（light.pdf.post_pages）时提示，照常出 PDF。
 第三版：句子块排成断句网格（rules.json 的 v3.pdf.chunk_layout：对排或下置），标签小框，不印原句、试和答；
-  轻读的读后依次是长难句、理解、词的用法、复述，答案区先排「长难句 · 译」；卡句另起一页，不算读后的页数。
+  轻读的读后依次是长难句、理解、词的用法、复述，答案区先排「长难句 · 整句和译」；卡句另起一页，不算读后的页数。
 排版打印用没有界面的 chrome-headless-shell（Google 官方，不是 App，不抢前台和键盘），先运行一次 renderer.py install 装好；
   环境变量 ER_CHROME 可以另指排版程序。本机带界面的 Chrome（Chromium、Edge、Brave）只在设了 ER_ALLOW_GUI_BROWSER=1 时用。
 排紧和目录页码要读回 PDF 的文字：有 pdftotext 用它，没有就用 swift + PDFKit（装 Xcode 命令行工具就有）；
@@ -92,7 +92,7 @@ STUCK = "卡句"                                                # 第三版末�
 V3_LIGHT_SECS = (PRE, "长难句", "理解", "词的用法", "复述")     # 第三版轻读：长难句提到理解前面；最后可以再有卡句
 V3_PRE = ("结构", "标记", "注", "试")                          # 句子块里写在断句表前面的项，按这个顺序
 V3_POST = ("答", "怎么拆", "卡点", "译", "句型", "延伸", "赏析")   # 写在断句表后面的项，按这个顺序
-V3_EXTRAS = ("怎么拆", "句型", "延伸", "赏析")                  # 只有精读的长难句可以写
+V3_EXTRAS = ("怎么拆", "句型", "延伸", "赏析")                  # 只有精读的长难句可以写；轻读的精讲句可以写怎么拆
 MARKS = ("词都认识", "有生词", "没说")                          # 「标记」：卡句的读者说卡在哪
 VOCAB = "词汇"                                                # 只给卡句用的标签：结构不难，卡在词上
 TABLE_HEAD = ["断句", "顺读"]                                   # 断句表的表头
@@ -2189,12 +2189,13 @@ def check_blocks_v3(ch, blocks, text, rules, tags, wl, hint, noted=None):
                     err(f"{b}：精读的长难句都是精讲句，缺少「{x}」")
         if s["mark"] is not None and s["mark"] not in MARKS:
             err(f"{b}：「标记」只能是{'、'.join(MARKS)}，不是「{s['mark']}」")
-        # S12 轻读和卡句不写怎么拆、句型、延伸、赏析；精读的怎么拆有步数上限（主干在 parse 里报）
+        # S12 卡句不写怎么拆、句型、延伸、赏析；轻读只有精讲句可以写怎么拆（steps_light 步）；精读的怎么拆有步数上限
+        # （主干在 parse 里报）
         for lab in labels:
-            if lab in V3_EXTRAS and (stuck or light):
-                err(f"{b}：{STUCK if stuck else '轻读的长难句'}不写「{lab}」")
-        if not stuck and not light:
-            lo, hi = sr["steps_intensive"]
+            if lab in V3_EXTRAS and (stuck or (light and not (lab == "怎么拆" and has["卡点"]))):
+                err(f"{b}：{STUCK if stuck else '轻读的练习句' if lab == '怎么拆' else '轻读的长难句'}不写「{lab}」")
+        if not stuck and (not light or has["卡点"]):
+            lo, hi = sr["steps_light" if light else "steps_intensive"]
             for it in s["items"]:
                 if it["label"] == "怎么拆":
                     k = len(it["sub"]) or int(bool(it["text"].strip()))
@@ -2236,7 +2237,7 @@ def post_estimate_v3(ch, est):
         if s["notes"]:
             paras.append("注　" + " · ".join(f"{w} {g}" for w, g in s["notes"]))
         for it in s["items"]:
-            if it["label"] == "卡点":
+            if it["label"] in ("卡点", "怎么拆"):
                 paras += [x for x in (it["text"], *it["sub"]) if x.strip()]
     paras += [x for q in ch["comprehension"]["questions"] for x in q.split("\n")]
     paras += post_paragraphs({**ch, "comprehension": {"questions": []}, "sentences": [], "extra": []})[0]   # 词条、复述
@@ -2891,12 +2892,17 @@ def sent_title_v3(s, num, tag="h3", href=None):
 
 def sent3_html(n, s, tight=0, pid="s", trans_out=False):
     """第三版的一个句子块：标题行、断句表、注、表后各项（怎么拆、卡点、译、句型、延伸、赏析）。原句、试、答不印。
-    trans_out：译不排在块里（轻读的精讲句，译排到答案区「长难句 · 译」）。pid：长难句 s，卡句 x。"""
+    trans_out：译不排在块里（轻读的精讲句，译排到答案区「长难句 · 整句和译」）。pid：长难句 s，卡句 x。"""
     cls = "sent v3" + (" tight" if tight else "") + (" tight2" if tight >= 2 else "")
     items = [it for it in s["items"] if not (trans_out and it["label"] == "译")]
     h = [f'<article class="{cls}" id="c{n}-{pid}{s["i"]}">', '<div class="pt"></div>' + sent_title_v3(s, s["i"]),
          grid_html(s) + notes_html(s["notes"])]
     return "\n".join(h + items_html(items)) + "</article>"
+
+
+def overview_html(s):
+    """整句一眼看全：断句表各行连起来，粗体（主语、谓语）照 b.core 排，其余灰一档。排在答案区，不剧透「试」。"""
+    return '<p class="ov">' + " ".join(chunk_html(c["md"]) for c in s["chunks"]) + "</p>"
 
 
 def trans_v3(s):
@@ -2906,7 +2912,7 @@ def trans_v3(s):
 
 def light3_pdf_html(ch, sect=()):
     """第三版的轻读单元：读前一页；读后从新页起，长难句（栏末一行回读）、理解、词的用法、复述连着排，
-    最后是答案（长难句 · 译、理解答案、复述参考）；卡句有才排，另起一页，页眉是「卡句」，不算读后的页数。"""
+    最后是答案（长难句 · 整句和译、理解答案、复述参考）；卡句有才排，另起一页，页眉是「卡句」，不算读后的页数。"""
     n = ch["n"]
     comp, retell = ch["comprehension"], ch["retell"] or {"prompts": [], "refs": []}
     qs = "".join(f'<li id="c{n}-q{k}"><a class="qn" href="#c{n}-a{k}">{k}</a><div class="qt">{lines_html(q)}</div></li>'
@@ -2917,14 +2923,14 @@ def light3_pdf_html(ch, sect=()):
             '<h2 class="sk">词的用法</h2>' + "".join(usage_html(n, k, u, True) for k, u in enumerate(ch["usage"], 1)),
             f'<h2 class="sk" id="c{n}-retell">复述</h2>{retell_html(ch)}']
     tr = "".join(f'<li id="c{n}-t{s["i"]}"><a class="qn" href="#c{n}-s{s["i"]}">{s["i"]}</a>'
-                 f'<div class="qt"><p>{pinline(t[0])}</p>{subs(t[1])}</div></li>'
+                 f'<div class="qt">{overview_html(s)}<p>{pinline(t[0])}</p>{subs(t[1])}</div></li>'
                  for s in ch["sentences"] for t in [trans_v3(s)] if t)
     ans = "".join(f'<li id="c{n}-a{k}"><a class="qn" href="#c{n}-q{k}">{k}</a><div class="qt"><p>{lines_html(a["text"])}</p>'
                   + "".join(cite_html(f"*{q}*", tag, t) for q, tag, t in zip(a["quotes"], a["tags"], a["trans"]))
                   + "</div></li>" for k, a in enumerate(comp["answers"], 1))
     refs = "".join(f'<p class="rref">{pinline(r)}</p>' for r in retell["refs"])
     body.append(f'<div class="lans" id="c{n}-ans"><p class="wait">{WAIT}</p><h2 class="sk">答案</h2>'
-                + (f'<div class="ah">长难句 · 译</div><ol class="ql al lt">{tr}</ol>' if tr else "")
+                + (f'<div class="ah">长难句 · 整句和译</div><ol class="ql al lt">{tr}</ol>' if tr else "")
                 + (f'<div class="ah">理解</div><ol class="ql al">{ans}</ol>' if ans else "")
                 + (f'<div class="ah"><a href="#c{n}-retell">复述 · 参考</a></div>{refs}' if refs else "") + "</div>")
     out = (preread_html(ch, "pre" in sect)
@@ -3791,7 +3797,7 @@ p.rref{font-family:var(--en);font-size:9.3pt;line-height:1.55;padding-left:5.6mm
 """
 
 
-# 第三版的版式：句子块的标签小框、断句网格、注一行、回读一行，答案区的「长难句 · 译」。只有第三版的项目才加
+# 第三版的版式：句子块的标签小框、断句网格、注一行、回读一行，答案区的「长难句 · 整句和译」。只有第三版的项目才加
 PDF_CSS_V3 = """
 /* 标题行：句号、标题，右边是标签小框（8pt，细边框）；标记小框用赭红 */
 .sth{display:flex;align-items:baseline;gap:2mm;margin:0 0 3.4mm;break-after:avoid}
@@ -3827,10 +3833,12 @@ p.nts{font-size:8pt;line-height:1.5;color:var(--soft);margin:-.8mm 0 2.4mm;break
 p.nts .c{color:var(--g)}
 /* 「长难句」栏末尾的回读 */
 p.reread{font:7.8pt/1.5 var(--sans);color:var(--soft);letter-spacing:.04em;margin:2.4mm 0 0;break-before:avoid}
-/* 轻读：句子块之间的间距照第二版；答案区的「长难句 · 译」 */
+/* 轻读：句子块之间的间距照第二版；答案区的「长难句 · 整句和译」 */
 .post .sth{margin-bottom:1.8mm}
 ol.lt .qt{font-family:var(--kai);color:#2c3535}
 ol.lt .qt p+p{margin-top:.6mm}
+ol.lt .qt p.ov{font:9.4pt/1.55 var(--en);color:var(--mute);margin-bottom:1mm}
+ol.lt .qt p.ov b.core{font-weight:600;color:#132020}
 /* 排紧 */
 .post.tight .ce{line-height:1.36;padding-top:.5mm;padding-bottom:.5mm}
 .post.tight .cz{line-height:1.42;padding-top:.6mm;padding-bottom:.5mm}

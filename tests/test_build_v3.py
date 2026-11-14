@@ -616,9 +616,18 @@ class TestS12Labels(Base):
         self.light(sub(V3L, "- **注**：bolt 猛冲\n", "- **注**：bolt 猛冲\n- **主干**：It was small wonder that he bolted.\n"))
         self.assertReports("句 1：第三版不写「主干」，断句表里的粗体就是主干", count=1)
 
-    def test_light_no_split(self):
+    def test_light_split_key_sentence(self):
+        """轻读的精讲句可以写 1–2 步怎么拆；多了是问题。"""
         self.light(sub(V3L, "- **答**：possible trouble ahead\n", "- **答**：possible trouble ahead\n- **怎么拆**：\n  1. it 指前面的麻烦。\n"))
-        self.assertReports("句 4：轻读的长难句不写「怎么拆」", count=1)
+        n, out = self.check()
+        self.assertNotIn("怎么拆", out)
+        three = "".join(f"  {k}. 第 {k} 步。\n" for k in (1, 2, 3))
+        self.light(sub(V3L, "- **答**：possible trouble ahead\n", "- **答**：possible trouble ahead\n- **怎么拆**：\n" + three))
+        self.assertReports("句 4：「怎么拆」写 1–2 步，现在 3 步", count=1)
+
+    def test_light_drill_no_split(self):
+        self.light(sub(V3L, "- **答**：trotted\n", "- **答**：trotted\n- **怎么拆**：\n  1. 先找谓语。\n"))
+        self.assertReports("句 3：轻读的练习句不写「怎么拆」", count=1)
 
     def test_stuck_no_pattern(self):
         self.intensive(in_block(V3J, JK2, "- **译**：可在这么个地方", "- **句型**：`too … for …`\n- **译**：可在这么个地方"))
