@@ -13,11 +13,16 @@
   python3 build.py words     [项目] [--anki]             单词本.md、单词本.tsv
   python3 build.py stuck     [项目] [--json]             卡句.txt 里的句子在原文里的位置（只读）
                             这三个由同目录的 notebook.py 做，build.py 只转发
+  python3 build.py fonts     [项目]                     列出本机字体（按宋体、楷体、黑体、英文大致分组）；
+                                                        给了项目再列它的 PDF 四种字体各用什么，本机没有的标「!」
   项目目录可以写在其他参数前后（pdf all demo、pdf demo all 都行）。输出默认放在项目目录里，给了 --out 就放到那个目录。
 
 项目目录（不写就是当前目录）。下面的「章」是 设置.json 里的 unit（章 / 部分 / 篇），文件名跟着变，如 第01部分.md、第01篇.txt：
   README.md       人写的说明和计划（脚本不读）
   设置.json        title、author、unit、units、default_mode、level、genre、appreciation、writing、fonts
+                  fonts：PDF 的字体。null 用系统字体；字符串是放 BookSong、BookKai 的目录；对象是各用什么字体：
+                  {"宋体": …, "楷体": …, "黑体": …, "英文": …, "目录": …}（键也可写 song、kai、hei、en、dir，都可不写），
+                  值是系统字体的 family 名、字体文件（.otf/.ttf/.ttc），或它们的列表（回退链）
                   每个单元是轻读还是精读：units 里写 "mode"，没写的用 default_mode；没有 default_mode 键时按精读（第一版的项目）
                   "format": 3 是第三版（句子块带结构标签和断句表，末尾是「## 卡句」）；没有这个键按第一、二版查，规则不变。
                   slug：难句本、单词本导出卡片的 id 前缀，不写就从 title 里取
@@ -177,16 +182,153 @@ def unit_mode(n):
 
 def font_dir():
     """中文字体目录（BookSong 书宋、BookKai 书楷）：设置.json 的 fonts，其次环境变量 ENGLISH_READER_FONTS。
-    都没有，或目录里没有 BookSong-Regular.otf，就用系统字体（宋体、楷体）。"""
-    for where, value in (("设置.json 的 fonts", P.fonts), ("环境变量 ENGLISH_READER_FONTS", os.environ.get("ENGLISH_READER_FONTS"))):
+    都没有，或目录里没有 BookSong-Regular.otf，就用系统字体（宋体、楷体）。fonts 写成对象时，目录是它的「目录」键。"""
+    for where, value in (("设置.json 的 fonts", font_spec(P.fonts)["dir"]),
+                         ("环境变量 ENGLISH_READER_FONTS", os.environ.get("ENGLISH_READER_FONTS"))):
         if not value:
             continue
-        d = Path(str(value)).expanduser()
-        d = d if d.is_absolute() else P.root / d
+        d = project_path(value)
         if (d / "BookSong-Regular.otf").exists():
             return d
         print(f"  ! {where} 指的 {d} 里没有 BookSong-Regular.otf，跳过")
     return None
+
+
+# ---------- PDF 的字体：设置.json 的 fonts 写成对象 ----------
+# {"宋体": …, "楷体": …, "黑体": …, "英文": …, "目录": …}，键也可以写 song、kai、hei、en、dir，都可以不写。
+# 值是系统字体的 family 名或字体文件（.otf/.ttf/.ttc），也可以是它们的列表（回退链）。
+FONT_ROLES = (("song", "宋体"), ("kai", "楷体"), ("hei", "黑体"), ("en", "英文"))
+FONT_KEYS = {"宋体": "song", "song": "song", "楷体": "kai", "kai": "kai", "黑体": "hei", "hei": "hei",
+             "英文": "en", "en": "en", "目录": "dir", "dir": "dir"}
+FONT_FILES = (".otf", ".ttf", ".ttc")
+# 没写的用这些，和 PDF_CSS 里写死的一样。StudySong、StudyKai 是字体目录里的书宋、书楷，没有目录时不起作用
+FONT_DEFAULTS = {"song": ["StudySong", "Songti SC"], "kai": ["StudyKai", "Kaiti SC", "STKaiti"],
+                 "hei": ["PingFang SC", "Heiti SC"], "en": ["Iowan Old Style", "Charter", "Georgia"]}
+FONT_OWN = {"StudySong", "StudyKai"}            # 不是系统字体，不查本机有没有
+FONT_GENERIC = {"serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"}
+
+
+def project_path(value):
+    """设置.json 里写的路径：~ 展开，相对路径从项目目录算。"""
+    d = Path(str(value).strip()).expanduser()
+    return d if d.is_absolute() else (P.root or Path.cwd()) / d
+
+
+def font_spec(fonts):
+    """拆开 fonts：{"dir": 目录（原样的字符串）或 None, "roles": {角色: [("name", 名字) / ("file", Path)]}, "problems": [说明]}。
+    目录字符串和 null 是原来的写法，只有 dir。有问题的项不用（回到默认），说明放进 problems。"""
+    spec = {"dir": None, "roles": {}, "problems": []}
+    bad = spec["problems"].append
+    if fonts is None or isinstance(fonts, str):
+        spec["dir"] = fonts or None
+        return spec
+    if not isinstance(fonts, dict):
+        bad("fonts 要写字体目录、对象（{\"宋体\": …, \"楷体\": …, \"黑体\": …, \"英文\": …}）或 null")
+        return spec
+    seen = {}
+    for key, value in fonts.items():
+        role = FONT_KEYS.get(key.strip())
+        if role is None:
+            bad(f"fonts 里不认识「{key}」：只认 宋体、楷体、黑体、英文、目录（或 song、kai、hei、en、dir）")
+            continue
+        if role in seen:
+            bad(f"fonts 里「{seen[role]}」和「{key}」是同一项，只写一个")
+            continue
+        seen[role] = key
+        if value is None:
+            continue
+        if role == "dir":
+            if not isinstance(value, str) or not value.strip():
+                bad(f"fonts 的「{key}」要写一个目录")
+            elif not project_path(value).is_dir():
+                bad(f"fonts 的「{key}」：目录 {project_path(value)} 不存在")
+            else:
+                spec["dir"] = value
+            continue
+        items = value if isinstance(value, list) else [value]
+        if not items or not all(isinstance(v, str) and v.strip() for v in items):
+            bad(f"fonts 的「{key}」要写字体名、字体文件路径（.otf/.ttf/.ttc），或它们的列表")
+            continue
+        chain = []
+        for v in (v.strip() for v in items):
+            if v.lower().endswith(FONT_FILES):
+                f = project_path(v)
+                if f.is_file():
+                    chain.append(("file", f))
+                else:
+                    bad(f"fonts 的「{key}」：字体文件 {f} 不存在")
+            elif "/" in v or "\\" in v:
+                bad(f"fonts 的「{key}」：{v} 像路径，但不是 .otf/.ttf/.ttc 文件")
+            else:
+                chain.append(("name", v))
+        if chain:
+            spec["roles"][role] = chain
+    return spec
+
+
+def font_family(name):
+    """CSS 的 font-family 里的一项：通用族名（serif 等）不加引号，其他加引号、转义。"""
+    return name if name.lower() in FONT_GENERIC else css_str(name)
+
+
+def font_override_css():
+    """fonts 写成对象、写了宋体/楷体/黑体/英文时，接在默认 CSS 后面的覆盖：重设 :root 的字体变量、页眉页脚、.zq。
+    英文字体在中文字体前面（英文字体没有中文字形，中文落到后面的中文字体）。没写这四项时是空串，默认输出不变。"""
+    roles = font_spec(P.fonts)["roles"]
+    if not roles:
+        return ""
+    faces, fam = [], {}
+    for role, _ in FONT_ROLES:
+        names = []
+        for k, (kind, v) in enumerate(roles.get(role, [("name", n) for n in FONT_DEFAULTS[role]]), 1):
+            if kind == "file":
+                face = f"er-{role}-{k}"
+                faces.append(f'@font-face{{font-family:"{face}";src:url({css_str(v.as_uri())});font-style:normal}}')
+                names.append(css_str(face))
+            else:
+                names.append(font_family(v))
+        fam[role] = names
+
+    def stack(*roles, head=(), tail="serif"):
+        """几个角色的字体连成一串，末尾补通用族名（已经以通用族名结尾就不补）。"""
+        names = list(head) + [n for r in roles for n in fam[r]]
+        return ",".join(names + ([] if names[-1] in FONT_GENERIC else [tail]))
+    en_song, hei = stack("en", "song"), stack("hei", tail="sans-serif")
+    return ("\n/* 设置.json 的 fonts */\n" + "".join(f + "\n" for f in faces)
+            + f':root{{--en:{en_song};--body:{en_song};--kai:{stack("en", "kai")};'
+              f'--sans:{stack("hei", head=[css_str("Helvetica Neue")], tail="sans-serif")}}}\n'
+            + f"@page{{@top-left{{font-family:{hei}}}@top-right{{font-family:{hei}}}"
+              f"@bottom-center{{font-family:{stack('en')}}}}}\n"
+            + f".zq{{font-family:{stack('song')}}}\n"
+            + f".kai .zq,.ctr .zq,.qtr .zq,p.tr .zq{{font-family:{stack('kai')}}}\n"
+            + "h1 .zq,h2 .zq,h3 .zq,b .zq,.og .zq,.gh .zq,.eh .zq,ul.map .zq{font-family:inherit}\n")
+
+
+def font_roles_now():
+    """各角色现在用的字体：[(角色名, [名字或文件路径], 是不是 设置.json 写的)]。"""
+    spec = font_spec(P.fonts)
+    out = []
+    for role, label in FONT_ROLES:
+        if role in spec["roles"]:
+            out.append((label, [str(v) for _, v in spec["roles"][role]], True))
+        else:
+            out.append((label, FONT_DEFAULTS[role], False))
+    return out
+
+
+def font_warnings():
+    """排 PDF 前提示：fonts 写错的地方、本机找不到的字体名（Chrome 会静默换成别的字体）。取不到字体列表时不提示本机有没有。"""
+    spec = font_spec(P.fonts)
+    for msg in spec["problems"]:
+        print(f"  ! 设置.json 的 {msg}，这一项用默认字体")
+    if not spec["roles"]:
+        return
+    mine = [(label, names) for label, names, set_here in font_roles_now() if set_here]
+    lost = font_lost([n for _, names in mine for n in names])
+    for label, names in mine:
+        for n in names:
+            if n in lost:
+                print(f"  ! 设置.json 的 fonts：{label}「{n}」本机没有，排出来会换成别的字体（build.py fonts 看本机有哪些）")
 
 
 def unit_stem(n):
@@ -2195,6 +2337,13 @@ def cmd_check(args):
         tally["句子结构"] = 0
         tags = [t["tag"] for t in load_tags()]
     hints, chapters, wl = [], [], []      # hints：(单元名, 类别, 说明)，不计入问题数
+    for msg in font_spec(P.fonts)["problems"]:      # fonts 的写法：第三版算问题，第一、二版只提示
+        if P.format >= 3:
+            bad += 1
+            tally["设置"] = tally.get("设置", 0) + 1
+            print(f"全部单元 设置：{msg}")
+        else:
+            hints.append(("全部单元", "设置", msg))
 
     def words_once():
         """词级数据：有读前或轻读单元时才载入，只载入一次。"""
@@ -3926,7 +4075,7 @@ def page_html(chapters, matches, pages=None, tight=None, sect=None, unkeep=None,
         FONT_DIR.append(font_dir())
     return (f'<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>{esc(P.title)} 讲解</title>'
             f"<style>{pdf_font_css(FONT_DIR[0])}{PDF_CSS}{PDF_CSS_V2 if needs_v2_css(chapters) else ''}"
-            f"{PDF_CSS_V3 if any(c.get('format') == 3 for c in chapters) else ''}\n{page_css(chapters)}</style>"
+            f"{PDF_CSS_V3 if any(c.get('format') == 3 for c in chapters) else ''}{font_override_css()}\n{page_css(chapters)}</style>"
             f"<body>{front}{body}</body></html>")
 
 
@@ -3995,26 +4144,31 @@ FileHandle.standardOutput.write(try! JSONSerialization.data(withJSONObject: page
 """
 
 
-def swift_words(pdf):
-    """pdf_words 的后备：swift + PDFKit（Xcode 命令行工具）。第一次编译成小程序缓存在临时目录（约 2 秒），之后每次约 1 秒。"""
+def swift_cmd(source, stem):
+    """跑一段 swift 的命令（参数另加）：第一次编译成小程序缓存在临时目录，之后直接跑；编译不了就解释执行（慢一些）；
+    没有 swift 返回 None。"""
     swiftc, swift = shutil.which("swiftc") or "/usr/bin/swiftc", shutil.which("swift") or "/usr/bin/swift"
-    cache = Path(tempfile.gettempdir()) / f"english-reader-pdfwords-{hashlib.sha1(SWIFT_WORDS.encode()).hexdigest()[:12]}"
-    src, exe = cache / "pdfwords.swift", cache / "pdfwords"
+    cache = Path(tempfile.gettempdir()) / f"english-reader-{stem}-{hashlib.sha1(source.encode()).hexdigest()[:12]}"
+    src, exe = cache / f"{stem}.swift", cache / stem
     if not exe.exists():
         cache.mkdir(parents=True, exist_ok=True)
-        src.write_text(SWIFT_WORDS, encoding="utf-8")
+        src.write_text(source, encoding="utf-8")
         if Path(swiftc).exists():
-            tmp = cache / f"pdfwords.{os.getpid()}"      # 编好再改名，几个进程同时编也不会读到半个文件
+            tmp = cache / f"{stem}.{os.getpid()}"      # 编好再改名，几个进程同时编也不会读到半个文件
             r = subprocess.run([swiftc, "-O", str(src), "-o", str(tmp)], capture_output=True, text=True)
             if r.returncode == 0:
                 tmp.replace(exe)
     if exe.exists():
-        cmd = [str(exe), str(pdf)]
-    elif Path(swift).exists():
-        cmd = [swift, str(src), str(pdf)]          # 编译不了就解释执行，慢一些
-    else:
-        cmd = None
-    r = subprocess.run(cmd, capture_output=True, text=True) if cmd else None
+        return [str(exe)]
+    if Path(swift).exists():
+        return [swift, str(src)]
+    return None
+
+
+def swift_words(pdf):
+    """pdf_words 的后备：swift + PDFKit（Xcode 命令行工具）。第一次编译成小程序缓存在临时目录（约 2 秒），之后每次约 1 秒。"""
+    cmd = swift_cmd(SWIFT_WORDS, "pdfwords")
+    r = subprocess.run(cmd + [str(pdf)], capture_output=True, text=True) if cmd else None
     if r and r.returncode == 0:
         try:
             return json.loads(r.stdout)
@@ -4028,6 +4182,191 @@ def swift_words(pdf):
 
 
 WARNED = []   # 读不出文字的提示只打印一次
+
+
+# ---------- 本机字体 ----------
+# macOS：swift 调 CoreText 列出字体 family（只用 CoreText，不碰 AppKit，不会变成带界面的程序），
+# 顺便看能不能排简体中文（有没有「们这说」的字形）。没有 swift 再用 system_profiler（慢）；Linux 用 fc-list。
+# 列表不全（如 Iowan Old Style 不在列表里，却能用），所以查某个名字有没有时，swift 带上名字参数，按 CoreText 的匹配算
+# （和 Chrome 一样认本地化名，如「宋体-简」）。
+SWIFT_FONTS = r"""
+import Foundation
+import CoreText
+let asked = Array(CommandLine.arguments.dropFirst())
+if !asked.isEmpty {
+    var have: [String: Bool] = [:]
+    for name in asked {
+        let desc = CTFontDescriptorCreateWithAttributes([kCTFontFamilyNameAttribute: name] as CFDictionary)
+        have[name] = CTFontDescriptorCreateMatchingFontDescriptor(desc, nil) != nil
+    }
+    let data = try! JSONSerialization.data(withJSONObject: have)
+    print(String(data: data, encoding: .utf8)!)
+    exit(0)
+}
+let probe = Array("们这说".utf16)
+var out: [[String: Any]] = []
+for name in (CTFontManagerCopyAvailableFontFamilyNames() as? [String]) ?? [] {
+    if name.hasPrefix(".") { continue }
+    let desc = CTFontDescriptorCreateWithAttributes([kCTFontFamilyNameAttribute: name] as CFDictionary)
+    let font = CTFontCreateWithFontDescriptor(desc, 12, nil)
+    var glyphs = [CGGlyph](repeating: 0, count: probe.count)
+    let zh = CTFontGetGlyphsForCharacters(font, probe, &glyphs, probe.count)
+    let local = (CTFontCopyLocalizedName(font, kCTFontFamilyNameKey, nil) as String?) ?? name
+    out.append(["family": name, "local": local, "zh": zh])
+}
+let data = try! JSONSerialization.data(withJSONObject: out)
+print(String(data: data, encoding: .utf8)!)
+"""
+SYSTEM_FONTS = {}      # {slow: 结果}，每次运行只取一次
+
+
+def system_fonts(slow=True):
+    """本机装的字体：{"how": 取法, "fams": [(family, 能排简体中文：True/False/None 不知道)], "names": 小写的名字（含本地化名）}。
+    取不到是 None。slow=False 时不用 system_profiler（要十几秒；排 PDF 时不值得等）。"""
+    if slow not in SYSTEM_FONTS:
+        SYSTEM_FONTS[slow] = list_fonts(slow)
+    return SYSTEM_FONTS[slow]
+
+
+def run_quiet(cmd, timeout=60):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def list_fonts(slow):
+    fams, names = {}, set()
+
+    def done(how):
+        return {"how": how, "fams": sorted(fams.items(), key=lambda x: x[0].lower()), "names": names} if fams else None
+
+    if sys.platform == "darwin":
+        cmd = swift_cmd(SWIFT_FONTS, "fontlist")
+        out = run_quiet(cmd) if cmd else None
+        try:
+            rows = json.loads(out) if out else None
+        except ValueError:
+            rows = None
+        if rows:
+            for r in rows:
+                fams[r["family"]] = bool(r.get("zh"))
+                names.update({r["family"].lower(), str(r.get("local") or "").lower()} - {""})
+            return done("swift + CoreText")
+        if slow and shutil.which("system_profiler"):
+            print("没有 swift，改用 system_profiler 取字体列表，要十几秒……")
+            out = run_quiet(["system_profiler", "SPFontsDataType", "-json"], timeout=180)
+            try:
+                items = json.loads(out)["SPFontsDataType"] if out else []
+            except (ValueError, KeyError, TypeError):
+                items = []
+            for item in items:
+                for face in item.get("typefaces") or []:
+                    if face.get("family") and not face["family"].startswith("."):
+                        fams[face["family"]] = None
+                        names.add(face["family"].lower())
+            return done("system_profiler")
+    fc = shutil.which("fc-list")
+    if fc:
+        out, zh = run_quiet([fc, ":", "family"]), run_quiet([fc, ":lang=zh-cn", "family"]) or ""
+        zh_names = {n.strip().lower() for line in zh.splitlines() for n in line.split(",")}
+        for line in (out or "").splitlines():
+            alias = [n.strip() for n in line.split(",") if n.strip()]
+            if alias and not alias[0].startswith("."):
+                fams[alias[0]] = alias[0].lower() in zh_names
+                names.update(a.lower() for a in alias)
+        return done("fc-list")
+    return None
+
+
+# 按名字大致分组的关键字（小写）。能判断能不能排简体中文时，中文的三组只收能排的
+FONT_GROUPS = (      # 楷体先看：宋刻本秀楷这类名字里也有 song
+    ("楷体", ("kai", "楷")),
+    ("宋体", ("song", "宋", "ming", "明", "serif cjk", "serif sc", "simsun", "fangsong", "仿宋", "mincho")),
+    ("黑体", ("hei", "黑", "sans cjk", "sans sc", "pingfang", "苹方", "yahei", "雅黑", "hiragino sans", "source han sans",
+            "思源", "wenquanyi", "文泉驿", "dengxian", "等线")),
+)
+EN_SANS = ("sans", "helvetica", "arial", "verdana", "tahoma", "segoe", "futura", "avenir", "gill", "optima", "calibri",
+           "frutiger", "myriad", "lucida grande", "inter", "roboto", "ubuntu", "cantarell", "trebuchet", "franklin",
+           "univers", "seravek", "geneva", "grotesk")
+EN_SERIF = ("serif", "times", "georgia", "garamond", "palatino", "baskerville", "iowan", "charter", "caslon", "bodoni",
+            "didot", "cambria", "antiqua", "minion", "century", "hoefler", "plantin", "sabon", "bembo", "stix", "libertin",
+            "crimson", "charis", "gentium", "constantia", "rockwell", "cochin", "athelas", "superclarendon",
+            "new york", "bookman", "schoolbook", "literata", "merriweather", "lora")
+FONT_GROUP_NAMES = ("宋体", "楷体", "黑体", "其他中文", "英文衬线", "英文无衬线", "其他")
+
+
+def font_group(family, zh):
+    """按名字大致分组。zh：能不能排简体中文（None 不知道，只看名字）。"""
+    low = family.lower()
+    if zh is not False:
+        for group, keys in FONT_GROUPS:
+            if any(k in low for k in keys):
+                return group
+        if zh:
+            return "其他中文"
+    if any(k in low for k in EN_SANS):
+        return "英文无衬线"
+    if any(k in low for k in EN_SERIF):
+        return "英文衬线"
+    return "其他"
+
+
+def font_lost(names):
+    """这些字体名里本机没有的（字体文件、通用族名、字体目录里的书宋书楷不查）。不知道本机有没有就当作有。
+    macOS 有 swift 时按 CoreText 的匹配；否则看 system_fonts() 的名字（排 PDF 时不用慢的 system_profiler）。"""
+    ask = sorted({n for n in names if not (n.lower().endswith(FONT_FILES) or n in FONT_OWN or n.lower() in FONT_GENERIC)})
+    if not ask:
+        return set()
+    if sys.platform == "darwin":
+        cmd = swift_cmd(SWIFT_FONTS, "fontlist")
+        out = run_quiet(cmd + ask) if cmd else None
+        try:
+            have = json.loads(out) if out else None
+        except ValueError:
+            have = None
+        if isinstance(have, dict):
+            return {n for n in ask if have.get(n) is False}
+    fams = system_fonts(slow=False)
+    return {n for n in ask if n.lower() not in fams["names"]} if fams else set()
+
+
+def cmd_fonts(args):
+    """列出本机字体，按名字大致分组；有项目时再列这个项目四种字体各用什么。"""
+    if args:
+        sys.exit("fonts 只接项目目录")
+    fams = system_fonts()
+    if fams:
+        print(f"本机字体 {len(fams['fams'])} 个（{fams['how']} 取的，分组按名字猜）：")
+        groups = {g: [] for g in FONT_GROUP_NAMES}
+        for family, zh in fams["fams"]:
+            groups[font_group(family, zh)].append(family)
+        for g in FONT_GROUP_NAMES:      # 宋体、楷体、黑体……的顺序
+            if groups[g]:
+                print(f"{g}（{len(groups[g])}）")
+                for k in range(0, len(groups[g]), 6):
+                    print("  " + "、".join(groups[g][k:k + 6]))
+        if fams["how"] == "swift + CoreText":
+            print("列表不全：有的系统字体不列出来也能用（如 Iowan Old Style）。项目一栏的「!」按实际匹配算，以它为准。")
+    else:
+        print("取不到本机的字体列表（macOS 要 swift，装 Xcode 命令行工具就有；Linux 要 fc-list）。"
+              "字体名按系统里显示的 family 名手写进 设置.json 的 fonts。")
+    if P.root is None:
+        return 0
+    spec = font_spec(P.fonts)
+    print(f"\n{P.root.name} 的 PDF 字体：")
+    now = font_roles_now()
+    lost = font_lost([n for _, names, _ in now for n in names])
+    for label, names, mine in now:
+        print(f"  {label}  {', '.join(('!' if n in lost else '') + n for n in names)}" + ("" if mine else "  （默认）"))
+    if spec["dir"]:
+        print(f"  目录  {project_path(spec['dir'])}（放 BookSong 书宋、BookKai 书楷；宋体、楷体没写时用）")
+    for msg in spec["problems"]:
+        print(f"  ! {msg}")
+    if lost:
+        print("标「!」的本机没有，排出来会换成别的字体。")
+    return 0
 
 
 def page_key(s):
@@ -4380,6 +4719,7 @@ def cmd_pdf(args):
     chapters = load_units(need)
     if not CHROME:
         CHROME.append(find_chrome())       # 先找好排版程序，找不到就在排版之前说明
+    font_warnings()
     matches = {n: sentence_hits(ch) for n, ch in chapters.items()}
     if P.format >= 3:       # 第三版不用 core_match：断句表里的粗体就是主干
         need_hl = []
@@ -4456,7 +4796,7 @@ def cmd_notebook(name, args):
 
 
 def main(argv):
-    cmds = {"check": cmd_check, "md": cmd_md, "pdf": cmd_pdf}
+    cmds = {"check": cmd_check, "md": cmd_md, "pdf": cmd_pdf, "fonts": cmd_fonts}
     cmds.update({c: (lambda args, c=c: cmd_notebook(c, args)) for c in NOTEBOOK})
     if len(argv) < 2 or argv[1] not in cmds:
         sys.exit(__doc__)
@@ -4474,7 +4814,8 @@ def main(argv):
         else:
             rest.append(a)
     args = rest
-    load_project(project or ".")
+    if argv[1] != "fonts" or project or Path("设置.json").exists():     # fonts 不在项目里也能用：只列本机字体
+        load_project(project or ".")
     return cmds[argv[1]](args)
 
 

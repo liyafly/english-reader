@@ -377,6 +377,7 @@ def cmd_sentences(args, build):
         if not book["entries"]:
             print(f"难句本里没有句子，不出 {SB_PDF}")
             return 0
+        build.font_warnings()
         book_pdf(book, build, out_dir / SB_PDF)
     return 0
 
@@ -499,7 +500,7 @@ def book_html(book, build, pages=None):
     if not b.FONT_DIR:
         b.FONT_DIR.append(b.font_dir())
     return (f'<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>{b.esc(title)} 难句本</title>'
-            f"<style>{b.pdf_font_css(b.FONT_DIR[0])}{b.PDF_CSS}{b.PDF_CSS_V2}{b.PDF_CSS_V3}{SB_CSS}\n{css}</style>"
+            f"<style>{b.pdf_font_css(b.FONT_DIR[0])}{b.PDF_CSS}{b.PDF_CSS_V2}{b.PDF_CSS_V3}{SB_CSS}{b.font_override_css()}\n{css}</style>"
             f"<body>{intro}{q}{ans}</body></html>")
 
 

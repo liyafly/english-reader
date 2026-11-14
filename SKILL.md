@@ -85,7 +85,7 @@ description: 把用户自己选的英文文本（小说章节、短篇、新闻�
 - `slug`：难句本、单词本导出卡片时 id 的前缀，用英文小写和 `-`。可以不写：脚本从 `title` 里取英文字母和数字，取不出来就用 `book`。
 - `default_mode`：新项目一律写 `"轻读"`；用户要整本精读就写 `"精读"`。个别单元换模式，在该单元写 `mode`。
 - `unit` 是单元的叫法：书用“章”，长文用“部分”，单篇短文用“篇”。
-- `fonts` 是 PDF 用的中文字体目录，没有就写 null，用系统字体。
+- `fonts` 是 PDF 的字体。用户没提就写 null（默认：Songti SC、Kaiti SC、PingFang SC、Iowan Old Style）。要换，写对象：`{"宋体": "STSong", "楷体": ["STKaiti", "Kaiti SC"], "黑体": "Hiragino Sans GB", "英文": "Palatino"}`。四个键都可不写，也可写 `song`、`kai`、`hei`、`en`；值是系统字体的 family 名、字体文件路径（.otf/.ttf/.ttc，相对项目目录），或它们的列表（回退链）。宋体管正文中文，楷体管顺读和译文，黑体管标题和页眉，英文管英文和页码。原来的写法（放 BookSong、BookKai 的目录字符串）照旧能用，对象里写成 `"目录"`。名字先用 `build.py fonts <项目>` 查本机有没有，标「!」的是没有。
 - `dictionaries` 留给本地词典文件（MDX 等，暂不支持），现在写空列表。
 
 把原文转成纯文本：

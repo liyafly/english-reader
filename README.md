@@ -140,9 +140,51 @@ id 重复时（同一个原句讲了两次，或同一章里同一个词注了�
 ## 运行要求
 
 - **Markdown、难句本、单词本**：Python 3.9 以上，只用标准库。macOS、Linux、Windows 都行；Windows 上把命令里的 `python3` 换成 `python`。
-- **PDF**：只支持 macOS。排版用 Google 官方的 chrome-headless-shell（没有界面的 Chrome，不会弹窗、不抢前台和键盘输入），第一次用之前安装一次：`python3 scripts/renderer.py install`（从 Google 官方地址下载，安装时先显示大小，装在 `~/Library/Caches/english-reader/`；`status` 查看，`remove` 卸载）。没装时 `build.py pdf` 会停下提示，不会去启动本机浏览器；坚持用本机 Chrome、Edge 等可以设 `ER_ALLOW_GUI_BROWSER=1`，排的时候会抢前台。另需 Xcode 命令行工具（`xcode-select --install`）；没有 swift 只是没有页码。中文字体默认用系统字体，有自己的字体目录可以在项目的 `设置.json` 里用 `fonts` 指定。
+- **PDF**：只支持 macOS。排版用 Google 官方的 chrome-headless-shell（没有界面的 Chrome，不会弹窗、不抢前台和键盘输入），第一次用之前安装一次：`python3 scripts/renderer.py install`（从 Google 官方地址下载，安装时先显示大小，装在 `~/Library/Caches/english-reader/`；`status` 查看，`remove` 卸载）。没装时 `build.py pdf` 会停下提示，不会去启动本机浏览器；坚持用本机 Chrome、Edge 等可以设 `ER_ALLOW_GUI_BROWSER=1`，排的时候会抢前台。另需 Xcode 命令行工具（`xcode-select --install`）；没有 swift 只是没有页码。字体默认用 macOS 自带的宋体、楷体、苹方和 Iowan Old Style，要换见下面「PDF 字体」。
 - **词的级别**：随 skill 附带 CEFR-J、Octanove 词表和 ECDICT 词频子集，离线可用。出处和许可见 `scripts/data/README.md`。拿 demo 原文按 A2、B1、C1 三档摸底，读法建议都合理（A2：偏难，主要难在词；B1：配讲义读；C1：适合练拆句）。按词频估出来的级别，具体名词常偏高（如 cart、canary），挑读前词时用 `lexicon.py level` 再核一次。
 - **词典核对**：先读 macOS 系统「词典」App 里的牛津英汉汉英词典和 Oxford Dictionary of English（没下载的在词典 App 的设置里勾选）；查不到或不是 macOS 时，联网查 dictionaryapi.dev（数据来自 Wiktionary）。不能联网时加 `--offline`。都用不了时，核对表标“未核对”。本地词典文件（MDX 等）暂不支持。
+
+### PDF 字体
+
+项目 `设置.json` 的 `fonts` 管 PDF 用什么字体（讲义和难句本都按它排）。三种写法：
+
+- `null`：用默认字体。
+- 一个目录（字符串）：目录里放 BookSong（书宋）、BookKai（书楷）的字体文件。原来的写法，照旧能用。
+- 一个对象：四种字体各用什么。
+
+```json
+"fonts": {"宋体": "Songti SC", "楷体": "Kaiti SC", "黑体": "PingFang SC", "英文": "Iowan Old Style"}
+```
+
+- 宋体：正文的中文。楷体：顺读、译文。黑体：标题、页眉和小字。英文：英文、页码。
+- 四个键都可以不写，没写的用默认。键也可以写 `song`、`kai`、`hei`、`en`。
+- 值写系统字体的名字（family 名），或字体文件的路径（`.otf`、`.ttf`、`.ttc`，相对项目目录或绝对路径）。
+- 值也可以是列表，前面的没有某个字就用后面的：`"楷体": ["STKaiti", "Kaiti SC"]`。
+- 英文字体排在中文字体前面：英文和数字用英文字体，中文落到宋体或楷体。
+- 还要用 BookSong 目录，加 `"目录": "字体目录"`。
+
+本机有哪些字体、项目现在用的是什么：
+
+```
+python3 scripts/build.py fonts            # 列出本机字体，按宋体、楷体、黑体、英文衬线、英文无衬线大致分组
+python3 scripts/build.py fonts 项目目录    # 另外列出这个项目四种字体各用什么，本机没有的标「!」
+```
+
+macOS 上用 swift 取字体列表（Xcode 命令行工具），没有 swift 用 `system_profiler`（要十几秒）；Linux 用 `fc-list`。分组按名字猜，仅供参考。排 PDF 时，写的字体本机没有会提示一行，照常排（Chrome 会换成别的字体）。`build.py check` 查 `fonts` 的写法：不认识的键、值的类型不对、文件不存在。
+
+例子。macOS 自带的另一套：
+
+```json
+"fonts": {"宋体": "STSong", "楷体": "STKaiti", "黑体": "Hiragino Sans GB", "英文": "Palatino"}
+```
+
+Noto 字体（Linux 常见，macOS 上自己装了也能用）：
+
+```json
+"fonts": {"宋体": "Noto Serif CJK SC", "楷体": ["LXGW WenKai", "AR PL UKai CN"], "黑体": "Noto Sans CJK SC", "英文": "Noto Serif"}
+```
+
+Windows 的字体名是 SimSun、KaiTi、Microsoft YaHei、Georgia 这一类。注意 PDF 现在只支持 macOS：在 Linux、Windows 上 `build.py fonts` 能列字体，排 PDF 还不行。
 
 ## 目录
 
@@ -164,7 +206,7 @@ scripts/
   source.py          把 epub、html、txt 转成按单元分的纯文本
   profile.py         摸底：篇幅、句长、长句和拆句候选、高于水平的词占多少、读前词候选
   lexicon.py         词的级别、词典查询、词典行核对
-  build.py           check（格式、引文、句子块、禁用语、长度、术语）、md、pdf；sentences、words、stuck 转给 notebook.py
+  build.py           check（格式、引文、句子块、禁用语、长度、术语）、md、pdf、fonts（本机字体）；sentences、words、stuck 转给 notebook.py
   notebook.py        难句本、单词本、卡句定位
   renderer.py        安装、查看、卸载 PDF 用的排版程序 chrome-headless-shell
   rules.json         数量和长度的规则
