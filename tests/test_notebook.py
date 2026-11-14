@@ -133,9 +133,9 @@ class TestSentences(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.root = make_project(Path(cls.tmp.name) / "项目", [(1, V3J, "精读"), (2, V3L, None)])
         cls.code, cls.out = run("sentences", cls.root, "--anki")
-        cls.md = (cls.root / "难句本.md").read_text(encoding="utf-8")
-        cls.tsv = (cls.root / "难句本.tsv").read_text(encoding="utf-8")
-        cls.anki = (cls.root / "难句本-anki.tsv").read_text(encoding="utf-8")
+        cls.md = (cls.root / "成品" / "复习" / "难句本.md").read_text(encoding="utf-8")
+        cls.tsv = (cls.root / "成品" / "导入" / "难句本.tsv").read_text(encoding="utf-8")
+        cls.anki = (cls.root / "成品" / "导入" / "难句本-anki.tsv").read_text(encoding="utf-8")
         cls.q, _, cls.a = cls.md.partition("\n## 二、对照\n")
         cls.rows = {r[11].replace(TITLE + " ", ""): r for r in tsv_rows(cls.tsv)}     # 出处（去掉书名）→ 行
 
@@ -271,7 +271,7 @@ class TestSentenceVariants(Temp):
         text = in_block(V3J, "2. 两个 it", "- **结构**：指代", "- **结构**：主谓隔开")
         root = make_project(self.dir / "p", [(1, text, "精读")])
         self.assertEqual(run("sentences", root)[0], 0)
-        q = (root / "难句本.md").read_text(encoding="utf-8").split("## 二、对照")[0]
+        q = (root / "成品" / "复习" / "难句本.md").read_text(encoding="utf-8").split("## 二、对照")[0]
         self.assertEqual(re.findall(r"〔(.+?)〕", groups(q)["主谓隔开"]), ["1-卡2", "1-5"])
 
     def test_numeric_hash_not_duplicate(self):
@@ -294,16 +294,16 @@ class TestSentenceVariants(Temp):
         """去掉轻读的句 2、后面的句子往前编号，再挪到第 3 章：同一个原句的 id 不变。"""
         root = make_project(self.dir / "a", [(2, V3L, None)])
         run("sentences", root)
-        before = {r[1]: r[0] for r in tsv_rows((root / "难句本.tsv").read_text(encoding="utf-8"))}
+        before = {r[1]: r[0] for r in tsv_rows((root / "成品" / "导入" / "难句本.tsv").read_text(encoding="utf-8"))}
         text = V3L.replace(block(V3L, "2. 句首的分词"), "")
         text = sub(sub(text, "### 3. who", "### 2. who"), "### 4. allude", "### 3. allude")
         root = make_project(self.dir / "b", [(3, text, None)])
         self.assertEqual(run("sentences", root)[0], 0)
-        after = {r[1]: r[0] for r in tsv_rows((root / "难句本.tsv").read_text(encoding="utf-8"))}
+        after = {r[1]: r[0] for r in tsv_rows((root / "成品" / "导入" / "难句本.tsv").read_text(encoding="utf-8"))}
         self.assertEqual(len(after), len(before) - 1)
         for quote, i in after.items():
             self.assertEqual(i, before[quote])
-        self.assertIn(f"{TITLE} 第 3 章 句 3", (root / "难句本.tsv").read_text(encoding="utf-8"))
+        self.assertIn(f"{TITLE} 第 3 章 句 3", (root / "成品" / "导入" / "难句本.tsv").read_text(encoding="utf-8"))
 
     def test_unknown_tag(self):
         text = in_block(V3L, "2. 句首的分词", "- **结构**：非谓语", "- **结构**：分词")
@@ -311,7 +311,7 @@ class TestSentenceVariants(Temp):
         code, out = run("sentences", root)
         self.assertEqual(code, 0, out)
         self.assertIn("主标签不在 结构标签.tsv 里（或没写）：1-2", out)
-        q = (root / "难句本.md").read_text(encoding="utf-8").split("## 二、对照")[0]
+        q = (root / "成品" / "复习" / "难句本.md").read_text(encoding="utf-8").split("## 二、对照")[0]
         self.assertEqual(list(groups(q))[-1], "标签不认识")
         self.assertEqual(re.findall(r"〔(.+?)〕", groups(q)["标签不认识"]), ["1-2"])
 
@@ -326,15 +326,15 @@ class TestSentenceVariants(Temp):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("环境变量 ER_CHROME 指的", out)
         self.assertIn("难句本-anki.tsv 是以前加 --anki 生成的，这次没有更新", out)
-        self.assertTrue((root / "难句本.md").exists())
-        self.assertFalse((root / "难句本.pdf").exists())
+        self.assertTrue((root / "成品" / "复习" / "难句本.md").exists())
+        self.assertFalse((root / "成品" / "复习" / "难句本.pdf").exists())
 
     def test_out_dir_and_bad_args(self):
         root = make_project(self.dir / "p", [(1, V3L, None)])
         code, out = run("sentences", root, "--out", str(self.dir / "导出"))
         self.assertEqual(code, 0, out)
-        self.assertTrue((self.dir / "导出" / "难句本.tsv").exists())
-        self.assertFalse((root / "难句本.tsv").exists())
+        self.assertTrue((self.dir / "导出" / "导入" / "难句本.tsv").exists())
+        self.assertFalse((root / "成品" / "导入" / "难句本.tsv").exists())
         code, out = run("sentences", root, "--json")
         self.assertNotEqual(code, 0)
         self.assertIn("sentences 不认识的参数：--json", out)
@@ -347,7 +347,7 @@ class TestSentenceVariants(Temp):
             self.assertEqual(code, 1, out)
             self.assertIn("这个项目是第一、二版的格式（设置.json 里没有 \"format\": 3）", out)
             self.assertIn(what, out)
-        self.assertFalse((root / "难句本.md").exists())
+        self.assertFalse((root / "成品" / "复习" / "难句本.md").exists())
 
 
 # ---------- 单词本 ----------
@@ -358,9 +358,9 @@ class TestWords(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.root = make_project(Path(cls.tmp.name) / "项目", [(1, V3J, "精读"), (2, V3L, None)])
         cls.code, cls.out = run("words", cls.root, "--anki")
-        cls.tsv = (cls.root / "单词本.tsv").read_text(encoding="utf-8")
-        cls.md = (cls.root / "单词本.md").read_text(encoding="utf-8")
-        cls.anki = (cls.root / "单词本-anki.tsv").read_text(encoding="utf-8")
+        cls.tsv = (cls.root / "成品" / "导入" / "单词本.tsv").read_text(encoding="utf-8")
+        cls.md = (cls.root / "成品" / "复习" / "单词本.md").read_text(encoding="utf-8")
+        cls.anki = (cls.root / "成品" / "导入" / "单词本-anki.tsv").read_text(encoding="utf-8")
         cls.rows = tsv_rows(cls.tsv)
         cls.by_id = {r[0]: r for r in cls.rows}
 
@@ -430,7 +430,7 @@ class TestWordsOldFormats(Temp):
                             fmt=None, default_mode=None, slug=None)
         code, out = run("words", root)
         self.assertEqual(code, 0, out)
-        rows = tsv_rows((root / "单词本.tsv").read_text(encoding="utf-8"))
+        rows = tsv_rows((root / "成品" / "导入" / "单词本.tsv").read_text(encoding="utf-8"))
         self.assertTrue(rows)
         self.assertEqual({r[8] for r in rows}, {"词条"})
         self.assertTrue(all(r[0].startswith("the-wind-in-the-willows-c01-") for r in rows))     # 没写 slug 从书名取
@@ -440,7 +440,7 @@ class TestWordsOldFormats(Temp):
         shutil.copytree(FIX / "demo_snapshot", root)
         code, out = run("words", root)
         self.assertEqual(code, 0, out)
-        rows = tsv_rows((root / "单词本.tsv").read_text(encoding="utf-8"))
+        rows = tsv_rows((root / "成品" / "导入" / "单词本.tsv").read_text(encoding="utf-8"))
         pre = [r for r in rows if r[8] == "读前"]
         self.assertTrue(pre)
         self.assertTrue(all(r[5] for r in pre), [r[1] for r in pre if not r[5]])
@@ -760,8 +760,8 @@ class TestBookPdf(Temp):
                 redirect_stdout(StringIO()):
             code = self.nb.run("sentences", ["--pdf"], self.b)
         self.assertEqual(code, 0)
-        self.assertTrue((self.root / "难句本.md").exists())
-        self.assertEqual(render.call_args.args[1], self.b.P.root / "难句本.pdf")
+        self.assertTrue((self.root / "成品" / "复习" / "难句本.md").exists())
+        self.assertEqual(render.call_args.args[1], self.b.P.root / "成品" / "复习" / "难句本.pdf")
         self.assertIn('<section class="front sbi"', render.call_args.args[0])
 
 

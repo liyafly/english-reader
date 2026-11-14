@@ -615,7 +615,7 @@ class TestMixed(Base):
         self.assertClean()
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        md = (self.root / "讲义.md").read_text(encoding="utf-8")
+        md = (self.root / "成品" / "讲义.md").read_text(encoding="utf-8")
         self.assertIn("- [第 1 章　分词短语，先找它挂在谁身上](#ch1)\n- [第 2 章　The Open Road](#ch2)\n", md)
         self.assertIn('<a id="ch2"></a>\n\n## 第 2 章\n\n### 读前\n', md)
 
@@ -623,7 +623,7 @@ class TestMixed(Base):
         self.project([(1, INTENSIVE, "精读", "The River Bank"), (2, LIGHT, "轻读", "")])
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        self.assertIn("- [第 2 章](#ch2)\n", (self.root / "讲义.md").read_text(encoding="utf-8"))
+        self.assertIn("- [第 2 章](#ch2)\n", (self.root / "成品" / "讲义.md").read_text(encoding="utf-8"))
 
     def test_first_intensive_unit_needs_no_review(self):
         # 第 2 章是第一个精读单元：不要求回头看（第一版会要求第 2 章起都要）
@@ -665,7 +665,7 @@ class TestHints(Base):
         self.project([(1, LIGHT, None, "")], default_mode="轻读")
         code, out = self.run_build("check")
         self.assertEqual(code, 0, out)
-        self.assertIn("核对引文 10 处，问题 0 个\n提示 3 个（估计出来的，逐条看，有理由不改的在 README 记一句）\n", out)
+        self.assertIn("核对引文 10 处，问题 0 个\n提示 3 个（估计出来的，逐条看，有理由不改的在 制作记录/计划与检查.md 记一句）\n", out)
         lines = [l for l in out.splitlines() if l.startswith("提示 第 1 章 ")]
         self.assertEqual(len(lines), 3, out)
         self.assertIn("提示 第 1 章 读前：读前词 bank（A1）不高于读者水平 B1", lines)
@@ -902,7 +902,7 @@ class TestCommands(Base):
         self.project([(1, INTENSIVE, None, "The River Bank"), (2, ch2, None, "The River Bank (copy)")], preface=PREFACE)
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        self.assertEqual((self.root / "讲义.md").read_bytes(), (FIX / "合订_精读两章_第一版.md").read_bytes())
+        self.assertEqual((self.root / "成品" / "讲义.md").read_bytes(), (FIX / "合订_精读两章_第一版.md").read_bytes())
 
     def test_csv_command_removed(self):
         self.project([(1, INTENSIVE, None, "")])

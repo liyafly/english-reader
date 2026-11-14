@@ -16,7 +16,6 @@ from unittest import mock
 HERE = Path(__file__).resolve().parent
 FIX = HERE / "fixtures"
 BUILD = HERE.parent / "scripts" / "build.py"
-OUTPUTS = ("讲义.md", "难句本.md", "难句本.tsv", "单词本.md", "单词本.tsv")
 FAKE = {"how": "测试", "fams": [("Songti SC", True), ("STKaiti", True), ("PingFang SC", True), ("Palatino", False),
                                ("Helvetica Neue", False), ("Apple Symbols", False)],
         "names": {"songti sc", "stkaiti", "pingfang sc", "palatino", "helvetica neue", "apple symbols"}}
@@ -35,7 +34,7 @@ class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve() / "demo"
-        shutil.copytree(self.SNAP, self.root, ignore=shutil.ignore_patterns(*OUTPUTS))
+        shutil.copytree(self.SNAP, self.root, ignore=shutil.ignore_patterns("成品"))
         self.env = mock.patch.dict(os.environ, {}, clear=False)
         self.env.start()
         os.environ.pop("ENGLISH_READER_FONTS", None)

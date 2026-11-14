@@ -18,7 +18,7 @@
 
 讲义里的每段引文都和原文逐字核对过，断句表连起来和原句一字不差，词典行对照词典核过音标和语体标签，写完还有一个没参与写作的代理独立审稿。不翻译全文，不替代词典。
 
-效果见 `demo/`：《柳林风声》第 1 章（精读）和第 2 章（轻读），B1 水平。先看 `demo/讲义/第02章.md` 和 `demo/难句本.md`。`demo/讲义.pdf`（44 页）和 `demo/难句本.pdf`（23 页）是第三版排的。
+效果见 `demo/`：《柳林风声》第 1 章（精读）和第 2 章（轻读），B1 水平。先看 `demo/讲义/第02章.md` 和 `demo/成品/复习/难句本.md`。`demo/成品/讲义.pdf`（44 页）和 `demo/成品/复习/难句本.pdf`（23 页）是第三版排的。
 
 ## 安装
 
@@ -72,7 +72,7 @@ git clone https://github.com/liyafly/english-reader.git && cd english-reader && 
 
 ## 导入 TSV
 
-`难句本.tsv`、`单词本.tsv`：制表符分隔，UTF-8，一行一条，没有表头行，格子里没有制表符和换行。各家工具都能当表格导入。
+`成品/导入/` 里的 `难句本.tsv`、`单词本.tsv`：制表符分隔，UTF-8，一行一条，没有表头行，格子里没有制表符和换行。各家工具都能当表格导入。
 
 要导入 Anki，让它加 `--anki`，另出 `难句本-anki.tsv`、`单词本-anki.tsv`。开头几行是 Anki 的文件头（分隔符、列名、id 列；难句本还有标签列），Anki 2.1.54 起认得。在 Anki 里「文件 → 导入」，把各列对到笔记类型的字段。难句本建议正面用原句、注、试，背面用其余。id 不随句子编号变，讲义改了重新导出、再导入，Anki 按 id 认出已有的卡。
 
@@ -206,7 +206,7 @@ scripts/
   source.py          把 epub、html、txt 转成按单元分的纯文本
   profile.py         摸底：篇幅、句长、长句和拆句候选、高于水平的词占多少、读前词候选
   lexicon.py         词的级别、词典查询、词典行核对
-  build.py           check（格式、引文、句子块、禁用语、长度、术语）、md、pdf、fonts（本机字体）；sentences、words、stuck 转给 notebook.py
+  build.py           check（格式、引文、句子块、禁用语、长度、术语）、md、pdf、fonts（本机字体）、tidy（旧项目整理目录）；sentences、words、stuck 转给 notebook.py
   notebook.py        难句本、单词本、卡句定位
   renderer.py        安装、查看、卸载 PDF 用的排版程序 chrome-headless-shell
   rules.json         数量和长度的规则
@@ -220,13 +220,18 @@ install.sh           软链接到 ~/.claude/skills/
 
 ```
 <项目>/
-  README.md  设置.json  卡句.txt
+  README.md  设置.json  卡句.txt      README 一屏，链接到成品
   原文/第NN章.txt …
-  讲义/前言.md  讲义/第NN章.md …
-  讲义.md  难句本.md  难句本.tsv  单词本.md  单词本.tsv     生成的
-  难句本-anki.tsv  单词本-anki.tsv                         要了 Anki 文件才有
-  讲义.pdf  难句本.pdf  分章/                               要了 PDF 才有
+  讲义/前言.md  讲义/第NN章.md …       源稿
+  成品/                              生成的，不要手改
+    讲义.md  讲义.pdf  分章/
+    复习/  难句本.md  难句本.pdf  单词本.md
+    导入/  难句本.tsv  单词本.tsv  难句本-anki.tsv  单词本-anki.tsv
+  制作记录/
+    计划与检查.md  审稿/
 ```
+
+PDF 要了才有，`-anki.tsv` 要了 Anki 文件才有。以前做的项目（输出平铺在根目录）照旧能用，输出还放在根目录；想整理就跑 `python3 scripts/build.py tidy <项目>`，它把生成的文件挪进 `成品/`，不覆盖已有的。README 里的计划和记录要自己挪进 `制作记录/计划与检查.md`。
 
 ## 版权
 

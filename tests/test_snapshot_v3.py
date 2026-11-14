@@ -14,7 +14,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SNAP = HERE / "fixtures" / "demo_snapshot_v3"
 BUILD = HERE.parent / "scripts" / "build.py"
-OUTPUTS = ("讲义.md", "难句本.md", "难句本.tsv", "单词本.md", "单词本.tsv")
+OUTPUTS = ("成品/讲义.md", "成品/复习/难句本.md", "成品/导入/难句本.tsv", "成品/复习/单词本.md", "成品/导入/单词本.tsv")
 
 
 def load_build():
@@ -29,7 +29,7 @@ class TestSnapshotV3(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.root = Path(cls.tmp.name) / "demo"
-        shutil.copytree(SNAP, cls.root, ignore=shutil.ignore_patterns(*OUTPUTS))
+        shutil.copytree(SNAP, cls.root, ignore=shutil.ignore_patterns("成品"))
         cls.out = {}
         for cmd in ("check", "md", "sentences", "words"):
             r = subprocess.run([sys.executable, str(BUILD), cmd, str(cls.root)], capture_output=True, text=True)

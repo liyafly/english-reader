@@ -180,7 +180,7 @@ class TestFixtures(Base):
         self.project([(1, V3J, "精读", "The River Bank"), (2, V3L, None, "The Open Road")], preface=PREFACE_V3)
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        md = (self.root / "讲义.md").read_text(encoding="utf-8")
+        md = (self.root / "成品" / "讲义.md").read_text(encoding="utf-8")
         self.assertIn("- [第 2 章　The Open Road](#ch2)\n", md)
         self.assertIn('<a id="ch2"></a>\n\n## 第 2 章\n\n### 读前\n', md)
         self.assertIn("\n### 卡句\n\n#### 1. 三个过去分词", md)
@@ -260,7 +260,7 @@ class TestV2Unchanged(Base):
     def md_sha(self):
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        return hashlib.sha256((self.root / "讲义.md").read_bytes()).hexdigest()
+        return hashlib.sha256((self.root / "成品" / "讲义.md").read_bytes()).hexdigest()
 
     def test_demo_snapshot(self):
         shutil.copytree(FIX / "demo_snapshot", self.root)
@@ -276,7 +276,7 @@ class TestV2Unchanged(Base):
         self.assertEqual(out, "第 2 章 格式：自测最后两题（且只有这两题）要以「回头看（第 N 章）：」开头\n核对引文 88 处，问题 1 个\n"
                               "  其中 格式和引文 1，禁用语 0，长度 0，直引号 0，术语 0，语法术语 0\n")
         self.run_build("md")
-        self.assertEqual((self.root / "讲义.md").read_bytes(), (FIX / "合订_精读两章_第一版.md").read_bytes())
+        self.assertEqual((self.root / "成品" / "讲义.md").read_bytes(), (FIX / "合订_精读两章_第一版.md").read_bytes())
 
     def test_mixed_v1_v2(self):
         self.project([(1, INTENSIVE, "精读", "The River Bank"), (2, LIGHT, None, "The Open Road")], preface=PREFACE, fmt=None)

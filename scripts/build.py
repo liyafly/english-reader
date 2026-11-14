@@ -15,10 +15,12 @@
                             这三个由同目录的 notebook.py 做，build.py 只转发
   python3 build.py fonts     [项目]                     列出本机字体（按宋体、楷体、黑体、英文大致分组）；
                                                         给了项目再列它的 PDF 四种字体各用什么，本机没有的标「!」
-  项目目录可以写在其他参数前后（pdf all demo、pdf demo all 都行）。输出默认放在项目目录里，给了 --out 就放到那个目录。
+  python3 build.py tidy      [项目]                     旧项目的输出从项目根目录挪进 成品/（只挪生成的文件，不覆盖）
+  项目目录可以写在其他参数前后（pdf all demo、pdf demo all 都行）。输出默认放在项目的 成品/ 里，给了 --out 就放到那个目录
+  （里面照样分 复习/、导入/）。旧项目的根目录里已有 讲义.md、难句本.md 这些输出、又没有 成品/ 的，照旧输出到根目录。
 
 项目目录（不写就是当前目录）。下面的「章」是 设置.json 里的 unit（章 / 部分 / 篇），文件名跟着变，如 第01部分.md、第01篇.txt：
-  README.md       人写的说明和计划（脚本不读）
+  README.md       一屏的说明，链接到成品（人写，脚本不读）
   设置.json        title、author、unit、units、default_mode、level、genre、appreciation、writing、fonts
                   fonts：PDF 的字体。null 用系统字体；字符串是放 BookSong、BookKai 的目录；对象是各用什么字体：
                   {"宋体": …, "楷体": …, "黑体": …, "英文": …, "目录": …}（键也可写 song、kai、hei、en、dir，都可不写），
@@ -30,7 +32,9 @@
   原文/第NN章.txt…  每个单元一份纯文本，段落之间空一行；引文核对的底本
   讲义/前言.md      可选：第一个「## 」之前是出处和缩写，之后每个「## 标题」在合订本前部各占一页
   讲义/第NN章.md…   每个单元一份讲义
-  讲义.pdf  讲义.md  分章/第NN章.pdf…  输出
+  成品/            输出（脚本写，不要手改）：讲义.md、讲义.pdf、分章/第NN章.pdf…；
+                  复习/：难句本.md、难句本.pdf、单词本.md；导入/：难句本.tsv、单词本.tsv、…-anki.tsv
+  制作记录/         计划与检查.md（计划、台账、检查和审稿记录）、审稿/（人写，脚本不读）
 
 合订本：封面、怎么用、目录、前言各页，然后各单元。封面、怎么用、目录按各单元的模式写。
 第一、二版的精读单元：读前（有才排）、章首页（地图）、精讲句、词的用法、语法、赏析、写作、补充句（有才排）、自测、答案，各从新页开始。
@@ -101,6 +105,7 @@ PLACEHOLDERS = {"sb", "sth", "sb's", "sth's", "one's", "oneself", "someone", "so
 class Project:
     """当前项目。load_project() 读 设置.json 填好，各处直接读 P。"""
     root = docs = src = out = None
+    flat = False               # 旧项目：输出平铺在项目根目录（根目录已有输出、没有 成品/）
     title = author = level = genre = ""
     unit = "章"
     units = []                 # [(单元号, 标题)]，标题没写就是 ""
@@ -126,7 +131,9 @@ def load_project(path):
         cfg = json.loads(conf.read_text(encoding="utf-8"))
     except ValueError as e:
         sys.exit(f"设置.json 不是合法的 JSON：{e}")
-    P.root, P.docs, P.src, P.out = root, root / "讲义", root / "原文", root
+    P.root, P.docs, P.src = root, root / "讲义", root / "原文"
+    P.flat = not (root / OUT_DIR).exists() and any((root / name).exists() for name in OUT_PLACE)
+    P.out = root if P.flat else root / OUT_DIR
     P.title = str(cfg.get("title") or "").strip()
     if not P.title:
         sys.exit("设置.json 缺少 title")
@@ -168,6 +175,24 @@ def load_project(path):
     if isinstance(P.format, bool) or P.format not in (2, 3):
         sys.exit(f"设置.json 的 format 只能写 3（第三版）；第一、二版的项目不写这个键，不是「{P.format}」")
     P.slug = str(cfg.get("slug") or "").strip() or slug_of(P.title)
+
+
+# 生成的文件放在 成品/ 里的哪一层：讲义和分章在 成品/ 下，难句本、单词本的 Markdown 和 PDF 在 复习/，TSV 在 导入/
+OUT_DIR = "成品"
+OUT_PLACE = {"讲义.md": "", "讲义.pdf": "", "分章": "",
+             "难句本.md": "复习", "难句本.pdf": "复习", "单词本.md": "复习",
+             "难句本.tsv": "导入", "难句本-anki.tsv": "导入", "单词本.tsv": "导入", "单词本-anki.tsv": "导入"}
+
+
+def out_path(out_dir, name):
+    """生成的文件 name 写到哪：旧项目（平铺）直接放 out_dir，否则按 OUT_PLACE 放进 复习/、导入/。"""
+    sub = "" if P.flat else OUT_PLACE[name]
+    return out_dir / sub / name if sub else out_dir / name
+
+
+def flat_note():
+    if P.flat:
+        print(f"（旧项目：输出照旧放在项目根目录。build.py tidy 可以挪进 {OUT_DIR}/）")
 
 
 def slug_of(title):
@@ -2426,7 +2451,7 @@ def cmd_check(args):
     if bad:
         print("  其中 " + "，".join(f"{k} {v}" for k, v in tally.items()))
     if hints:
-        print(f"提示 {len(hints)} 个（估计出来的，逐条看，有理由不改的在 README 记一句）")
+        print(f"提示 {len(hints)} 个（估计出来的，逐条看，有理由不改的在 制作记录/计划与检查.md 记一句）")
     return 1 if bad else 0
 
 
@@ -4681,7 +4706,7 @@ def build_pdf(chapters, matches, out_dir, whole=False):
 
 
 def take_out(args):
-    """拿出「--out 目录」，返回 (输出目录, 其余参数)。默认输出到项目目录。"""
+    """拿出「--out 目录」，返回 (输出目录, 其余参数)。默认是项目的 成品/（旧项目是项目根目录）。"""
     out_dir = P.out
     if "--out" in args:
         k = args.index("--out")
@@ -4731,6 +4756,7 @@ def cmd_pdf(args):
             print(f"  {n:>2}-{s['i']}  {ratio:4.0%}  {'高亮' if hits else '跳过：' + why}")
         for s, (hits, ratio, why) in zip(chapters[n]["extra"], sentence_hits(chapters[n], "extra")):
             print(f"  {n:>2}-补{s['i']}  {ratio:4.0%}  {'高亮' if hits else '跳过：' + why}")
+    flat_note()
     out_dir.mkdir(parents=True, exist_ok=True)
     for job in jobs:
         build_pdf([chapters[n] for n in job], matches, out_dir, whole=sorted(job) == avail)
@@ -4778,10 +4804,35 @@ def cmd_md(args):
                 line = "#" + line
             lines.append(line)
         parts.append(f'<a id="ch{ch["n"]}"></a>\n\n' + "\n".join(lines).strip("\n") + "\n")
+    flat_note()
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / "讲义.md"
     target.write_text("\n---\n\n".join(parts), encoding="utf-8")
     print(target)
+
+
+def cmd_tidy(args):
+    """旧项目：根目录里的输出挪进 成品/（按 OUT_PLACE 分进 复习/、导入/）。只挪生成的文件；成品/ 里已有同名的不挪。"""
+    if args:
+        sys.exit(f"tidy 只接项目目录，不认识：{' '.join(args)}")
+    left = [name for name in OUT_PLACE if (P.root / name).exists()]
+    if not left:
+        print(f"根目录里没有要挪的输出，输出都在 {OUT_DIR}/ 里")
+        return 0
+    P.flat = False
+    out, kept = P.root / OUT_DIR, []
+    for name in left:
+        target = out_path(out, name)
+        if target.exists():
+            kept.append(name)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        (P.root / name).rename(target)
+        print(f"{name} → {target.relative_to(P.root)}")
+    for name in kept:
+        print(f"  ! {OUT_DIR}/ 里已有 {name}，根目录这份没挪：确认不要了就删掉")
+    print(f"计划、台账、检查和审稿记录如果还在 README.md 里，挪进 制作记录/计划与检查.md（手动）")
+    return 1 if kept else 0
 
 
 NOTEBOOK = ("sentences", "words", "stuck")      # 难句本、单词本、卡句定位：实现在同目录的 notebook.py
@@ -4796,7 +4847,7 @@ def cmd_notebook(name, args):
 
 
 def main(argv):
-    cmds = {"check": cmd_check, "md": cmd_md, "pdf": cmd_pdf, "fonts": cmd_fonts}
+    cmds = {"check": cmd_check, "md": cmd_md, "pdf": cmd_pdf, "fonts": cmd_fonts, "tidy": cmd_tidy}
     cmds.update({c: (lambda args, c=c: cmd_notebook(c, args)) for c in NOTEBOOK})
     if len(argv) < 2 or argv[1] not in cmds:
         sys.exit(__doc__)

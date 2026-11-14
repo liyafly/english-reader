@@ -920,7 +920,7 @@ class TestChrome(PdfBase):
         self.assertNotIn("不许启动外部程序", out)
         self.assertNotIn("主干高亮", out)                         # 在排版之前就停下
         self.assertNotIn("Traceback", out)
-        self.assertFalse((self.root / "讲义.pdf").exists())
+        self.assertFalse((self.root / "成品" / "讲义.pdf").exists())
 
 
 # ---------- 真的出一份 PDF（本机没有浏览器或 swift 就跳过） ----------
@@ -957,7 +957,7 @@ class TestRealPdf(PdfBase):
         self.assertIn("排版程序：chrome-headless-shell", out)
         self.assertNotIn("用本机浏览器排版", out)
         self.assertIn("第 2 章（轻读）：读前 1 页", out)
-        pages = self.b.pdf_words(self.root / "讲义.pdf")
+        pages = self.b.pdf_words(self.root / "成品" / "讲义.pdf")
         up = self.b.unit_pages(pages, chapters)
         self.assertEqual(sorted(up), [1, 2])
         toc = next(p["text"] for p in pages if p["text"].startswith("目录"))
@@ -971,7 +971,7 @@ class TestRealPdf(PdfBase):
         self.assertEqual(first["head"], "")
         self.assertTrue(after["head"].endswith("读后"))
         self.assertIn(q1, after["text"])
-        titles = outline_titles(self.root / "讲义.pdf")       # 第一版的精读单元（没有读前）：书签是章首页那一个
+        titles = outline_titles(self.root / "成品" / "讲义.pdf")       # 第一版的精读单元（没有读前）：书签是章首页那一个
         self.assertEqual([t for t in titles if t.startswith("第 ")], ["第 1 章", "第 2 章 The Open Road"], titles)
 
     def test_bookmarks_one_per_unit(self):
@@ -980,7 +980,7 @@ class TestRealPdf(PdfBase):
                      default_mode="轻读")
         r = subprocess.run([sys.executable, str(BUILD), "pdf", str(self.root)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        titles = outline_titles(self.root / "讲义.pdf")
+        titles = outline_titles(self.root / "成品" / "讲义.pdf")
         self.assertEqual([t for t in titles if t.startswith("第 ")], ["第 1 章 The River Bank", "第 2 章 The Open Road"], titles)
         self.assertIn("精讲句", titles)
 

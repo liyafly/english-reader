@@ -8,6 +8,7 @@
         单词本.md、单词本.tsv（三种格式的项目都行）。--anki 另出 单词本-anki.tsv
   python3 build.py stuck     [项目] [--json]
         卡句.txt 里的每一句在原文里找：命中、多处、近似、找不到、太短。只读，不改 卡句.txt，退出码总是 0
+  难句本、单词本的 .md 和 .pdf 写进 成品/复习/，.tsv 写进 成品/导入/（旧项目平铺在根目录，见 build.out_path）
 
 build.py 载入项目（P 填好）后调用 run(子命令, 其余参数, build)，build 就是 build.py 模块，这里直接用它的
 parse_chapter、source_path、stuck_words、load_tags、Words 这些。check 在项目有 卡句.txt 时调用 locate_stuck(build)。
@@ -364,11 +365,12 @@ def cmd_sentences(args, build):
     for w in book["warnings"]:
         print(f"  ! {w}")
     rows = book_rows(book)
-    write(out_dir / SB_FILES[0], book_md(book, build))
-    write(out_dir / SB_FILES[1], tsv(rows))
+    build.flat_note()
+    write(build.out_path(out_dir, SB_FILES[0]), book_md(book, build))
+    write(build.out_path(out_dir, SB_FILES[1]), tsv(rows))
     if "--anki" in flags:
-        write(out_dir / SB_FILES[2], tsv(rows, SB_ANKI))
-    elif (out_dir / SB_FILES[2]).exists():
+        write(build.out_path(out_dir, SB_FILES[2]), tsv(rows, SB_ANKI))
+    elif build.out_path(out_dir, SB_FILES[2]).exists():
         print(f"  ! {SB_FILES[2]} 是以前加 --anki 生成的，这次没有更新")
     see = sum(len(g["see"]) for g in book["groups"])
     print(f"难句本 {len(rows)} 句，{sum(1 for g in book['groups'] if g['items'])} 组"
@@ -378,7 +380,7 @@ def cmd_sentences(args, build):
             print(f"难句本里没有句子，不出 {SB_PDF}")
             return 0
         build.font_warnings()
-        book_pdf(book, build, out_dir / SB_PDF)
+        book_pdf(book, build, build.out_path(out_dir, SB_PDF))
     return 0
 
 
@@ -948,11 +950,12 @@ def cmd_words(args, build):
         print(f"  ! {w}")
     table = [[r["id"], r["head"], r["ipa"], r["pos"], r["gloss"], r["sentence"], r["trans"], r["n"], r["type"],
               r["mastery"], r["level"]] for r in rows]
-    write(out_dir / WB_FILES[0], words_md(build, rows))
-    write(out_dir / WB_FILES[1], tsv(table))
+    build.flat_note()
+    write(build.out_path(out_dir, WB_FILES[0]), words_md(build, rows))
+    write(build.out_path(out_dir, WB_FILES[1]), tsv(table))
     if "--anki" in flags:
-        write(out_dir / WB_FILES[2], tsv(table, WB_ANKI))
-    elif (out_dir / WB_FILES[2]).exists():
+        write(build.out_path(out_dir, WB_FILES[2]), tsv(table, WB_ANKI))
+    elif build.out_path(out_dir, WB_FILES[2]).exists():
         print(f"  ! {WB_FILES[2]} 是以前加 --anki 生成的，这次没有更新")
     c = Counter(r["type"] for r in rows)
     print(f"单词本 {len(rows)} 条：读前 {c['读前']}，词条 {c['词条']}，注 {c['注']}")
