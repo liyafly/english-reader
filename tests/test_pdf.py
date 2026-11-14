@@ -92,7 +92,7 @@ class PdfBase(unittest.TestCase):
         """units：[(单元号, 讲义, mode 或 None, 标题)]。default_mode=None 时 设置.json 里不写这个键（第一版的写法）。
         fmt=3 时写 "format": 3（第三版）。"""
         (self.root / "原文").mkdir(parents=True, exist_ok=True)
-        (self.root / "讲义").mkdir(parents=True, exist_ok=True)
+        (self.root / "源稿").mkdir(parents=True, exist_ok=True)
         cfg = {"title": "The Wind in the Willows", "author": "Kenneth Grahame", "unit": "章", "units": [],
                "level": "B1", "genre": "小说", "appreciation": True, "writing": True, "fonts": None}
         if default_mode is not None:
@@ -102,10 +102,10 @@ class PdfBase(unittest.TestCase):
         for n, text, mode, title in units:
             cfg["units"].append({"n": n, "title": title, **({"mode": mode} if mode else {})})
             (self.root / "原文" / f"第{n:02d}章.txt").write_text(SOURCE, encoding="utf-8")
-            (self.root / "讲义" / f"第{n:02d}章.md").write_text(text, encoding="utf-8")
+            (self.root / "源稿" / f"第{n:02d}章.md").write_text(text, encoding="utf-8")
         (self.root / "设置.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
         if preface is not None:
-            (self.root / "讲义" / "前言.md").write_text(preface, encoding="utf-8")
+            (self.root / "源稿" / "前言.md").write_text(preface, encoding="utf-8")
         self.b.load_project(self.root)
         nums = self.b.available()
         self.chs = self.b.load_units(nums)
@@ -407,8 +407,17 @@ class TestV3Light(PdfBase):
         for h3 in re.findall(r"<h3.*?</h3>", self.unit):
             self.assertNotIn('class="tg', h3)
 
+    def test_quote_before_notes_and_grid(self):
+        # 先印整句，再注，再断句表（同 md 的顺序）
+        art = self.unit.split('<article', 2)[1]
+        self.assertIn('<p class="oq">', art)
+        self.assertLess(art.index('<p class="oq">'), art.index('<div class="cg'))
+        if '<p class="nts">' in art:
+            self.assertLess(art.index('<p class="oq">'), art.index('<p class="nts">'))
+            self.assertLess(art.index('<p class="nts">'), art.index('<div class="cg'))
+
     def test_no_quote_try_answer(self):
-        self.assertNotIn('class="orig', self.unit)              # 原句不单独排，断句表就是原句
+        self.assertNotIn('class="orig', self.unit)              # 第二版的原句块不用
         for q in tries(V3L):
             self.assertNotIn(q, self.unit)
         self.assertNotIn('<div class="tag">试</div>', self.unit)
@@ -420,7 +429,7 @@ class TestV3Light(PdfBase):
             self.html(self.chapters, book=True)
 
     def test_notes_line(self):
-        self.assertIn('</div><p class="nts"><span class="ntl">注</span><span class="c">bolt</span> 猛冲</p>', self.post)
+        self.assertIn('coat.</p><p class="nts"><span class="ntl">注</span><span class="c">bolt</span> 猛冲</p><div class="cg', self.post)   # 整句之后、断句表之前
         self.assertIn('<span class="c">bewitch</span> 迷住 · <span class="c">entrance</span> 使出神', self.stuck)
 
     def test_translation_in_answers(self):
@@ -487,7 +496,7 @@ class TestV3Light(PdfBase):
         pages = [pg("封面"), pg("01第1章" + mark), pg("长难句", post), pg("…", post), pg("做完再看答案长难句·译", post, 0.5),
                  pg("卡句1", stuck), pg("…", stuck)]
         self.assertEqual(self.b.unit_layout(pages, self.chapters)[1], {"pre": 1, "post": 2, "total": 3, "own": True})
-        self.assertEqual(self.b.post_cap(), 3)
+        self.assertEqual(self.b.post_cap(), 4)
 
 
 class TestV3Intensive(PdfBase):
@@ -508,7 +517,7 @@ class TestV3Intensive(PdfBase):
 
     def test_translation_and_extras_stay_in_block(self):
         s1 = self.sent.split('id="c1-s2"')[0]
-        order = [s1.index(x) for x in ('class="cg', 'class="nts"', '<div class="tag">怎么拆</div>', '<div class="tag">卡点</div>',
+        order = [s1.index(x) for x in ('class="oq"', 'class="nts"', 'class="cg', '<div class="tag">怎么拆</div>', '<div class="tag">卡点</div>',
                                        '<div class="tag">译</div>', '<div class="tag">句型</div>', '<div class="tag">举一反三</div>',
                                        '<div class="tag">赏析</div>')]
         self.assertEqual(order, sorted(order))
@@ -561,7 +570,7 @@ class TestV3Front(PdfBase):
 
     def test_reread_once_when_preface_has_it(self):
         # 前言开头的出处说明照 写法.md 写了回读的话，「怎么用」页的说明就不再重复
-        (self.root / "讲义" / "前言.md").write_text(PREFACE_V3.replace("。", "。" + self.b.REREAD, 1), encoding="utf-8")
+        (self.root / "源稿" / "前言.md").write_text(PREFACE_V3.replace("。", "。" + self.b.REREAD, 1), encoding="utf-8")
         page = self.html(self.chapters, book=True)
         howto = plain(page.split('<section class="front howto v2">', 1)[1].split("</section>")[0])
         self.assertEqual(howto.count(plain(self.b.REREAD)), 1)
@@ -936,7 +945,7 @@ class TestChrome(PdfBase):
         self.assertNotIn("不许启动外部程序", out)
         self.assertNotIn("主干高亮", out)                         # 在排版之前就停下
         self.assertNotIn("Traceback", out)
-        self.assertFalse((self.root / "成品" / "讲义.pdf").exists())
+        self.assertFalse((self.root / "成品" / "讲义-全本.pdf").exists())
 
 
 # ---------- 真的出一份 PDF（本机没有浏览器或 swift 就跳过） ----------
@@ -973,7 +982,7 @@ class TestRealPdf(PdfBase):
         self.assertIn("排版程序：chrome-headless-shell", out)
         self.assertNotIn("用本机浏览器排版", out)
         self.assertIn("第 2 章（轻读）：读前 1 页", out)
-        pages = self.b.pdf_words(self.root / "成品" / "讲义.pdf")
+        pages = self.b.pdf_words(self.root / "成品" / "讲义-全本.pdf")
         up = self.b.unit_pages(pages, chapters)
         self.assertEqual(sorted(up), [1, 2])
         toc = next(p["text"] for p in pages if p["text"].startswith("目录"))
@@ -987,7 +996,7 @@ class TestRealPdf(PdfBase):
         self.assertEqual(first["head"], "")
         self.assertTrue(after["head"].endswith("读后"))
         self.assertIn(q1, after["text"])
-        titles = outline_titles(self.root / "成品" / "讲义.pdf")       # 第一版的精读单元（没有读前）：书签是章首页那一个
+        titles = outline_titles(self.root / "成品" / "讲义-全本.pdf")       # 第一版的精读单元（没有读前）：书签是章首页那一个
         self.assertEqual([t for t in titles if t.startswith("第 ")], ["第 1 章", "第 2 章 The Open Road"], titles)
 
     def test_bookmarks_one_per_unit(self):
@@ -996,7 +1005,7 @@ class TestRealPdf(PdfBase):
                      default_mode="轻读")
         r = subprocess.run([sys.executable, str(BUILD), "pdf", str(self.root)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        titles = outline_titles(self.root / "成品" / "讲义.pdf")
+        titles = outline_titles(self.root / "成品" / "讲义-全本.pdf")
         self.assertEqual([t for t in titles if t.startswith("第 ")], ["第 1 章 The River Bank", "第 2 章 The Open Road"], titles)
         self.assertIn("精讲句", titles)
 

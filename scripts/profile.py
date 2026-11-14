@@ -4,7 +4,7 @@
 用法：
   profile.py 项目目录            读 项目/原文/第NN章.txt（单元名 章/部分/篇 取 设置.json 的 unit），
                                  读者水平取 项目/设置.json 的 level（没有就 B1），单元标题取 units；
-                                 项目/讲义/第NN章.md 存在时读其中「## 读前」→「### 本章的词」；
+                                 项目/源稿/第NN章.md（旧项目是 讲义/）存在时读其中「## 读前」→「### 本章的词」；
                                  项目/卡句.txt 存在时，拆句候选里标出卡句
   profile.py 某个.txt            单个文本（在 项目/原文/ 里时同样读 设置.json、前面单元的讲义和 卡句.txt）
   可选：--level B1  --top 30（「高一级」「高两级及以上」每类打印几个，0=全部）
@@ -214,9 +214,9 @@ def lecture_words(path):
 
 
 def lecture_lists(project, unit):
-    """项目/讲义/第NN章.md 里列过的读前词：{编号: [词头]}；讲义目录不存在时是空的。"""
+    """项目/源稿/第NN章.md（旧项目是 讲义/）里列过的读前词：{编号: [词头]}；源稿目录不存在时是空的。"""
     listed = {}
-    d = Path(project) / "讲义" if project else None
+    d = next((Path(project) / n for n in ("源稿", "讲义") if (Path(project) / n).is_dir()), None) if project else None
     if d is not None and d.is_dir():
         for f in d.glob("第*%s.md" % unit):
             m = re.fullmatch(r"第(\d+)%s\.md" % re.escape(unit), f.name)

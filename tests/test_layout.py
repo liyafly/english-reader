@@ -1,5 +1,7 @@
-"""项目目录的结构：输出进 成品/（讲义在顶层，复习/、导入/ 分开）；旧项目（根目录已有输出、没有 成品/）照旧平铺；
-tidy 把旧项目的输出挪进 成品/，不覆盖已有的。用 fixtures/demo_snapshot_v3/ 的副本，不排 PDF。"""
+"""项目目录的结构：源稿在 源稿/；输出进 成品/，文件名自带类别（讲义-全本.md、难句本.md…），只有 TSV 进 导入/。
+旧项目照旧能用：只有 讲义/ 的照旧读 讲义/；根目录已有输出、没有 成品/ 的照旧平铺。
+tidy 把旧名字改成新的（讲义/ → 源稿/，平铺的输出和 成品/ 的上一种布局 → 新名字），不覆盖已有的。
+用 fixtures/demo_snapshot_v3/ 的副本，不排 PDF。"""
 import shutil
 import subprocess
 import sys
@@ -10,7 +12,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SNAP = HERE / "fixtures" / "demo_snapshot_v3"
 BUILD = HERE.parent / "scripts" / "build.py"
-NEW = ("成品/讲义.md", "成品/复习/难句本.md", "成品/导入/难句本.tsv", "成品/复习/单词本.md", "成品/导入/单词本.tsv")
+NEW = ("成品/讲义-全本.md", "成品/难句本.md", "成品/导入/难句本.tsv", "成品/单词本.md", "成品/导入/单词本.tsv")
 FLAT = ("讲义.md", "难句本.md", "难句本.tsv", "单词本.md", "单词本.tsv")
 
 
@@ -40,6 +42,34 @@ class TestLayout(unittest.TestCase):
         for name in FLAT:
             self.assertFalse((self.root / name).exists(), name)
 
+    def test_old_docs_dir_still_read(self):
+        (self.root / "源稿").rename(self.root / "讲义")
+        code, out = run("check", self.root)
+        self.assertEqual(code, 0, out)
+        code, out = run("md", self.root)
+        self.assertEqual(code, 0, out)
+        self.assertIn("build.py tidy", out)
+        self.assertIn("讲义/", out)
+        self.assertTrue((self.root / "成品" / "讲义-全本.md").exists())
+
+    def test_tidy_renames_docs_and_previous_layout(self):
+        (self.root / "源稿").rename(self.root / "讲义")
+        out_dir = self.root / "成品"
+        for name in ("讲义.md", "讲义.pdf", "复习/难句本.md", "复习/难句本.pdf", "复习/单词本.md", "分章/第01章.pdf",
+                     "分章/第02章.pdf", "导入/难句本.tsv"):
+            (out_dir / name).parent.mkdir(parents=True, exist_ok=True)
+            (out_dir / name).write_text("旧的\n", encoding="utf-8")
+        code, out = run("tidy", self.root)
+        self.assertEqual(code, 0, out)
+        for name in ("源稿/第01章.md", "成品/讲义-全本.md", "成品/讲义-全本.pdf", "成品/难句本.md", "成品/难句本.pdf",
+                     "成品/单词本.md", "成品/讲义-第01章.pdf", "成品/讲义-第02章.pdf", "成品/导入/难句本.tsv"):
+            self.assertTrue((self.root / name).exists(), name)
+        for name in ("讲义", "成品/讲义.md", "成品/复习", "成品/分章"):
+            self.assertFalse((self.root / name).exists(), name)
+        code, out = run("md", self.root)
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("build.py tidy", out)
+
     def test_out_dir_keeps_subfolders(self):
         out = Path(self.tmp.name) / "别处"
         self.build_all("--out", out)
@@ -62,7 +92,7 @@ class TestLayout(unittest.TestCase):
         (self.root / "分章" / "第01章.pdf").write_bytes(b"%PDF")
         code, out = run("tidy", self.root)
         self.assertEqual(code, 0, out)
-        for name in NEW + ("成品/分章/第01章.pdf",):
+        for name in NEW + ("成品/讲义-第01章.pdf",):
             self.assertTrue((self.root / name).exists(), name)
         for name in FLAT + ("分章",):
             self.assertFalse((self.root / name).exists(), name)
@@ -72,17 +102,17 @@ class TestLayout(unittest.TestCase):
 
     def test_tidy_does_not_overwrite(self):
         (self.root / "成品").mkdir()
-        (self.root / "成品" / "讲义.md").write_text("新的\n", encoding="utf-8")
+        (self.root / "成品" / "讲义-全本.md").write_text("新的\n", encoding="utf-8")
         (self.root / "讲义.md").write_text("旧的\n", encoding="utf-8")
         code, out = run("tidy", self.root)
         self.assertEqual(code, 1, out)
-        self.assertEqual((self.root / "成品" / "讲义.md").read_text(encoding="utf-8"), "新的\n")
+        self.assertEqual((self.root / "成品" / "讲义-全本.md").read_text(encoding="utf-8"), "新的\n")
         self.assertTrue((self.root / "讲义.md").exists())
 
     def test_tidy_nothing_to_move(self):
         code, out = run("tidy", self.root)
         self.assertEqual(code, 0, out)
-        self.assertIn("没有要挪的输出", out)
+        self.assertIn("没有要改的旧名字", out)
 
 
 if __name__ == "__main__":

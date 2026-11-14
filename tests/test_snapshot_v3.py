@@ -14,7 +14,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SNAP = HERE / "fixtures" / "demo_snapshot_v3"
 BUILD = HERE.parent / "scripts" / "build.py"
-OUTPUTS = ("成品/讲义.md", "成品/复习/难句本.md", "成品/导入/难句本.tsv", "成品/复习/单词本.md", "成品/导入/单词本.tsv")
+OUTPUTS = ("成品/讲义-全本.md", "成品/难句本.md", "成品/导入/难句本.tsv", "成品/单词本.md", "成品/导入/单词本.tsv")
 
 
 def load_build():
@@ -44,7 +44,7 @@ class TestSnapshotV3(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("问题 0 个", out)
         self.assertIn("提示 3 个", out)
-        self.assertIn("第 2 章 篇幅：估计读后约 3.0 页，接近上限 3 页", out)
+        self.assertIn("第 2 章 篇幅：估计读后约 3.7 页，接近上限 4 页", out)
 
     def test_outputs_identical(self):
         for cmd in ("md", "sentences", "words"):
@@ -57,7 +57,7 @@ class TestSnapshotV3(unittest.TestCase):
 class TestPostEstimateV3(unittest.TestCase):
     """第 2 章（轻读）和从它改出来的三个变体，估页和实排相差不超过 0.15 页。
     实排：下置排法，读后从第一页起，到「做完再看」前最后一行，按页面正文区折算成页数（校准时一共排了 6 个变体，最多差 0.10 页）。"""
-    ACTUAL = {"原样": 2.87, "去掉句 4": 2.40, "只留精讲句 1、3": 2.12, "加一句 8 行的长难句": 3.47}
+    ACTUAL = {"原样": 3.70, "去掉句 4": 3.12, "只留精讲句 1、3": 2.47, "加一句 8 行的长难句": 4.56}
 
     def setUp(self):
         self.b = load_build()
@@ -69,7 +69,7 @@ class TestPostEstimateV3(unittest.TestCase):
         self.tmp.cleanup()
 
     def variants(self):
-        md = (SNAP / "讲义" / "第02章.md").read_text(encoding="utf-8")
+        md = (SNAP / "源稿" / "第02章.md").read_text(encoding="utf-8")
         sec = re.search(r"(?ms)^## 长难句\n.*?(?=^## )", md).group(0)
         head, *sents = re.split(r"(?m)^(?=### \d+\. )", sec)
         stuck = re.split(r"(?m)^(?=### \d+\. )", re.search(r"(?ms)^## 卡句\n.*", md).group(0))[1:]
@@ -86,7 +86,7 @@ class TestPostEstimateV3(unittest.TestCase):
         est = self.b.load_rules()["v3"]["light"]["md_estimate"]
         for name, md in self.variants().items():
             with self.subTest(name):
-                (self.root / "讲义" / "第02章.md").write_text(md, encoding="utf-8")
+                (self.root / "源稿" / "第02章.md").write_text(md, encoding="utf-8")
                 self.b.load_project(self.root)
                 ch = self.b.parse_chapter(2)
                 self.assertEqual(ch["errors"], [])

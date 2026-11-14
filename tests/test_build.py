@@ -615,7 +615,7 @@ class TestMixed(Base):
         self.assertClean()
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        md = (self.root / "成品" / "讲义.md").read_text(encoding="utf-8")
+        md = (self.root / "成品" / "讲义-全本.md").read_text(encoding="utf-8")
         self.assertIn("- [第 1 章　分词短语，先找它挂在谁身上](#ch1)\n- [第 2 章　The Open Road](#ch2)\n", md)
         self.assertIn('<a id="ch2"></a>\n\n## 第 2 章\n\n### 读前\n', md)
 
@@ -623,7 +623,7 @@ class TestMixed(Base):
         self.project([(1, INTENSIVE, "精读", "The River Bank"), (2, LIGHT, "轻读", "")])
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        self.assertIn("- [第 2 章](#ch2)\n", (self.root / "成品" / "讲义.md").read_text(encoding="utf-8"))
+        self.assertIn("- [第 2 章](#ch2)\n", (self.root / "成品" / "讲义-全本.md").read_text(encoding="utf-8"))
 
     def test_first_intensive_unit_needs_no_review(self):
         # 第 2 章是第一个精读单元：不要求回头看（第一版会要求第 2 章起都要）
@@ -902,7 +902,7 @@ class TestCommands(Base):
         self.project([(1, INTENSIVE, None, "The River Bank"), (2, ch2, None, "The River Bank (copy)")], preface=PREFACE)
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        self.assertEqual((self.root / "成品" / "讲义.md").read_bytes(), (FIX / "合订_精读两章_第一版.md").read_bytes())
+        self.assertEqual((self.root / "成品" / "讲义-全本.md").read_bytes(), (FIX / "合订_精读两章_第一版.md").read_bytes())
 
     def test_csv_command_removed(self):
         self.project([(1, INTENSIVE, None, "")])

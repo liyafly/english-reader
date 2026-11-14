@@ -8,7 +8,7 @@
         单词本.md、单词本.tsv（三种格式的项目都行）。--anki 另出 单词本-anki.tsv
   python3 build.py stuck     [项目] [--json]
         卡句.txt 里的每一句在原文里找：命中、多处、近似、找不到、太短。只读，不改 卡句.txt，退出码总是 0
-  难句本、单词本的 .md 和 .pdf 写进 成品/复习/，.tsv 写进 成品/导入/（旧项目平铺在根目录，见 build.out_path）
+  难句本、单词本的 .md 和 .pdf 写进 成品/，.tsv 写进 成品/导入/（旧项目平铺在根目录，见 build.out_path）
 
 build.py 载入项目（P 填好）后调用 run(子命令, 其余参数, build)，build 就是 build.py 模块，这里直接用它的
 parse_chapter、source_path、stuck_words、load_tags、Words 这些。check 在项目有 卡句.txt 时调用 locate_stuck(build)。

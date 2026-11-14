@@ -95,7 +95,7 @@ class Base(unittest.TestCase):
         if self.root.exists():
             shutil.rmtree(self.root)
         (self.root / "原文").mkdir(parents=True)
-        (self.root / "讲义").mkdir(parents=True)
+        (self.root / "源稿").mkdir(parents=True)
         cfg = {"title": "The Wind in the Willows", "author": "Kenneth Grahame", "unit": "章", "units": [],
                "level": "B1", "genre": "小说", "appreciation": True, "writing": True, "fonts": None}
         if fmt is not None:
@@ -108,11 +108,11 @@ class Base(unittest.TestCase):
                 u["mode"] = mode
             cfg["units"].append(u)
             (self.root / "原文" / f"第{n:02d}章.txt").write_text(source, encoding="utf-8")
-            (self.root / "讲义" / f"第{n:02d}章.md").write_text(text, encoding="utf-8")
+            (self.root / "源稿" / f"第{n:02d}章.md").write_text(text, encoding="utf-8")
         cfg.update(extra or {})
         (self.root / "设置.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
         if preface is not None:
-            (self.root / "讲义" / "前言.md").write_text(preface, encoding="utf-8")
+            (self.root / "源稿" / "前言.md").write_text(preface, encoding="utf-8")
         return self.root
 
     def light(self, text, **kw):
@@ -180,7 +180,7 @@ class TestFixtures(Base):
         self.project([(1, V3J, "精读", "The River Bank"), (2, V3L, None, "The Open Road")], preface=PREFACE_V3)
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        md = (self.root / "成品" / "讲义.md").read_text(encoding="utf-8")
+        md = (self.root / "成品" / "讲义-全本.md").read_text(encoding="utf-8")
         self.assertIn("- [第 2 章　The Open Road](#ch2)\n", md)
         self.assertIn('<a id="ch2"></a>\n\n## 第 2 章\n\n### 读前\n', md)
         self.assertIn("\n### 卡句\n\n#### 1. 三个过去分词", md)
@@ -260,7 +260,7 @@ class TestV2Unchanged(Base):
     def md_sha(self):
         code, out = self.run_build("md")
         self.assertEqual(code, 0, out)
-        return hashlib.sha256((self.root / "成品" / "讲义.md").read_bytes()).hexdigest()
+        return hashlib.sha256((self.root / "成品" / "讲义-全本.md").read_bytes()).hexdigest()
 
     def test_demo_snapshot(self):
         shutil.copytree(FIX / "demo_snapshot", self.root)
@@ -276,7 +276,7 @@ class TestV2Unchanged(Base):
         self.assertEqual(out, "第 2 章 格式：自测最后两题（且只有这两题）要以「回头看（第 N 章）：」开头\n核对引文 88 处，问题 1 个\n"
                               "  其中 格式和引文 1，禁用语 0，长度 0，直引号 0，术语 0，语法术语 0\n")
         self.run_build("md")
-        self.assertEqual((self.root / "成品" / "讲义.md").read_bytes(), (FIX / "合订_精读两章_第一版.md").read_bytes())
+        self.assertEqual((self.root / "成品" / "讲义-全本.md").read_bytes(), (FIX / "合订_精读两章_第一版.md").read_bytes())
 
     def test_mixed_v1_v2(self):
         self.project([(1, INTENSIVE, "精读", "The River Bank"), (2, LIGHT, None, "The Open Road")], preface=PREFACE, fmt=None)
@@ -810,9 +810,9 @@ class TestTagTable(Base):
         self.light(V3L, preface=PREFACE)
         self.assertHints("提示 全部单元 句子结构：前言.md 里没有「## 句子结构」表")
         self.light(V3L)          # 没有前言：也是一条提示
-        self.assertHints("提示 全部单元 句子结构：没有 讲义/前言.md：第三版的前言要有「## 句子结构」表")
+        self.assertHints("提示 全部单元 句子结构：没有 源稿/前言.md：第三版的前言要有「## 句子结构」表")
         self.light(V3L, fmt=None)          # 第一、二版不提示
-        self.assertNotIn("没有 讲义/前言.md", self.check()[1])
+        self.assertNotIn("没有 源稿/前言.md", self.check()[1])
 
 
 class TestGrammarTermsV3(Base):
@@ -847,14 +847,14 @@ class TestPostEstimate(Base):
         heavy = sub(V3L, rows, rows * 6)                     # 断句表多出 30 行（S3 会报对不上，这里只看篇幅提示）
         self.light(heavy)
         n, out = self.check()
-        self.assertRegex(out, r"提示 第 1 章 篇幅：估计读后约 \d\.\d 页，上限 3 页；估计和实排差 0.1 页上下，以 PDF 实排为准")
+        self.assertRegex(out, r"提示 第 1 章 篇幅：估计读后约 \d\.\d 页，上限 4 页；估计和实排差 0.1 页上下，以 PDF 实排为准")
 
     def test_estimate(self):
         b = load_build()
         self.light(V3L)
         b.load_project(self.root)
         est = b.load_rules()["v3"]["light"]["md_estimate"]
-        self.assertAlmostEqual(b.post_estimate_v3(b.parse_chapter(1), est), 2.50, delta=0.1)     # 校准后的参数、下置排法
+        self.assertAlmostEqual(b.post_estimate_v3(b.parse_chapter(1), est), 3.24, delta=0.1)     # 校准后的参数、下置排法、先印整句
 
 
 # ---------- 数据（给难句本、单词本、PDF 用）和位置名 ----------
@@ -952,7 +952,7 @@ class TestRules(unittest.TestCase):
                                       "词条": [2, 2], "复述": [1, 1]})
         self.assertEqual(v3["light"]["max_chars"], {"卡点": 100})        # 试的上限两种模式共用，在 v3.sentence.try_chars
         self.assertEqual(v3["light"]["md_estimate"]["每页行数"], 31)        # 按实排校准
-        self.assertEqual(v3["light"]["pdf"], {"post_pages": 3})
+        self.assertEqual(v3["light"]["pdf"], {"post_pages": 4})
 
 
 # ---------- 卡句.txt 的提示、sentences / words / stuck 的转发 ----------

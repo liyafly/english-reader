@@ -4,20 +4,21 @@
   python3 build.py check [项目]                         核对格式和引文；另查禁用语、长度、直引号、术语、语法术语、
                                                         读前词的次数、理解答案和复述参考的句数。结果分「问题」（决定退出码）
                                                         和「提示」（估计出来的：词的级别、读后大约几页、术语表里没用到的）
-  python3 build.py md    [项目] [--out 目录]             前言和各单元原样合订成 讲义.md（单元标题降一级，正文不改）；
-                                                        只有一个单元时不生成（讲义/第NN章.md 就是全文，前言单独看）
+  python3 build.py md    [项目] [--out 目录]             前言和各单元原样合订成 讲义-全本.md（单元标题降一级，正文不改）；
+                                                        只有一个单元时不生成（源稿/第NN章.md 就是全文，前言单独看）
   python3 build.py pdf   [项目] [单元号…|all] [--out 目录]
-                            不写单元号 = 合订本 讲义.pdf；写单元号 = 分章/第NN章.pdf；
-                            all = 合订本加各单元的分章（只有一个单元时只出 讲义.pdf）
+                            不写单元号 = 合订本 讲义-全本.pdf；写单元号 = 分章 讲义-第NN章.pdf；
+                            all = 合订本加各单元的分章（只有一个单元时只出 讲义-全本.pdf）
   python3 build.py sentences [项目] [--pdf] [--anki]     难句本.md、难句本.tsv（第三版的项目）
   python3 build.py words     [项目] [--anki]             单词本.md、单词本.tsv
   python3 build.py stuck     [项目] [--json]             卡句.txt 里的句子在原文里的位置（只读）
                             这三个由同目录的 notebook.py 做，build.py 只转发
   python3 build.py fonts     [项目]                     列出本机字体（按宋体、楷体、黑体、英文大致分组）；
                                                         给了项目再列它的 PDF 四种字体各用什么，本机没有的标「!」
-  python3 build.py tidy      [项目]                     旧项目的输出从项目根目录挪进 成品/（只挪生成的文件，不覆盖）
+  python3 build.py tidy      [项目]                     旧名字改成新的：讲义/ → 源稿/，输出挪进 成品/ 并改名（只挪不覆盖）
   项目目录可以写在其他参数前后（pdf all demo、pdf demo all 都行）。输出默认放在项目的 成品/ 里，给了 --out 就放到那个目录
-  （里面照样分 复习/、导入/）。旧项目的根目录里已有 讲义.md、难句本.md 这些输出、又没有 成品/ 的，照旧输出到根目录。
+  （里面照样有 导入/）。旧项目的根目录里已有 讲义.md、难句本.md 这些输出、又没有 成品/ 的，照旧输出到根目录、用旧名字；
+  只有 讲义/ 没有 源稿/ 的旧项目，照旧读 讲义/。build.py tidy 把这些都改成新的。
 
 项目目录（不写就是当前目录）。下面的「章」是 设置.json 里的 unit（章 / 部分 / 篇），文件名跟着变，如 第01部分.md、第01篇.txt：
   README.md       一屏的说明，链接到成品（人写，脚本不读）
@@ -30,17 +31,17 @@
                   slug：难句本、单词本导出卡片的 id 前缀，不写就从 title 里取
   卡句.txt         第三版：读的时候卡住的句子（可以没有）。check 提示定位到了、讲义里却没讲的
   原文/第NN章.txt…  每个单元一份纯文本，段落之间空一行；引文核对的底本
-  讲义/前言.md      可选：第一个「## 」之前是出处和缩写，之后每个「## 标题」在合订本前部各占一页
-  讲义/第NN章.md…   每个单元一份讲义
-  成品/            输出（脚本写，不要手改）：讲义.md、讲义.pdf、分章/第NN章.pdf…；
-                  复习/：难句本.md、难句本.pdf、单词本.md；导入/：难句本.tsv、单词本.tsv、…-anki.tsv
+  源稿/前言.md      可选：第一个「## 」之前是出处和缩写，之后每个「## 标题」在合订本前部各占一页
+  源稿/第NN章.md…   每个单元一份讲义的源稿（人写、人改的都在这里）
+  成品/            输出（脚本写，不要手改），文件名自带类别：讲义-全本.pdf、讲义-全本.md、讲义-第NN章.pdf…、
+                  难句本.md、难句本.pdf、单词本.md；导入/：难句本.tsv、单词本.tsv、…-anki.tsv
   制作记录/         计划与检查.md（计划、台账、检查和审稿记录）、审稿/（人写，脚本不读）
 
 合订本：封面、怎么用、目录、前言各页，然后各单元。封面、怎么用、目录按各单元的模式写。
 第一、二版的精读单元：读前（有才排）、章首页（地图）、精讲句、词的用法、语法、赏析、写作、补充句（有才排）、自测、答案，各从新页开始。
 第一、二版的轻读单元：读前一页；读后从新页起，理解、长难句、词的用法、复述、补充句（有才排）接着排，最后是答案。
   读前超过一页、读后（不含答案）超过 rules.json 的上限（light.pdf.post_pages）时提示，照常出 PDF。
-第三版：句子块排成断句网格（rules.json 的 v3.pdf.chunk_layout：对排或下置），标签小框，不印原句、试和答；
+第三版：句子块先印整句，再排断句网格（rules.json 的 v3.pdf.chunk_layout：对排或下置），标签小框，不印试和答；
   轻读的读后依次是长难句、理解、词的用法、复述，答案区先排「长难句 · 整句和译」；卡句另起一页，不算读后的页数。
 排版打印用没有界面的 chrome-headless-shell（Google 官方，不是 App，不抢前台和键盘），先运行一次 renderer.py install 装好；
   环境变量 ER_CHROME 可以另指排版程序。本机带界面的 Chrome（Chromium、Edge、Brave）只在设了 ER_ALLOW_GUI_BROWSER=1 时用。
@@ -131,8 +132,10 @@ def load_project(path):
         cfg = json.loads(conf.read_text(encoding="utf-8"))
     except ValueError as e:
         sys.exit(f"设置.json 不是合法的 JSON：{e}")
-    P.root, P.docs, P.src = root, root / "讲义", root / "原文"
-    P.flat = not (root / OUT_DIR).exists() and any((root / name).exists() for name in OUT_PLACE)
+    # 源稿/ 是第三版的目录名；只有 讲义/ 的旧项目照旧读 讲义/（build.py tidy 可以改名）
+    legacy_docs = not (root / DOCS_DIR).exists() and (root / OLD_DOCS_DIR).is_dir()
+    P.root, P.docs, P.src = root, root / (OLD_DOCS_DIR if legacy_docs else DOCS_DIR), root / "原文"
+    P.flat = not (root / OUT_DIR).exists() and any((root / name).exists() for name in FLAT_NAMES)
     P.out = root if P.flat else root / OUT_DIR
     P.title = str(cfg.get("title") or "").strip()
     if not P.title:
@@ -177,22 +180,48 @@ def load_project(path):
     P.slug = str(cfg.get("slug") or "").strip() or slug_of(P.title)
 
 
-# 生成的文件放在 成品/ 里的哪一层：讲义和分章在 成品/ 下，难句本、单词本的 Markdown 和 PDF 在 复习/，TSV 在 导入/
+# 目录名：源稿/ 是人写的讲义（旧项目叫 讲义/），成品/ 是脚本生成的
+DOCS_DIR, OLD_DOCS_DIR = "源稿", "讲义"
 OUT_DIR = "成品"
-OUT_PLACE = {"讲义.md": "", "讲义.pdf": "", "分章": "",
-             "难句本.md": "复习", "难句本.pdf": "复习", "单词本.md": "复习",
-             "难句本.tsv": "导入", "难句本-anki.tsv": "导入", "单词本.tsv": "导入", "单词本-anki.tsv": "导入"}
+# 生成的文件在 成品/ 里的路径：文件名自带类别，单独发出去也认得；只有 TSV 进 导入/。
+# 键是文件的逻辑名（也是平铺的旧项目在根目录用的名字）。分章 PDF 是 讲义-第NN章.pdf，见 unit_pdf_path
+OUT_PLACE = {"讲义.md": "讲义-全本.md", "讲义.pdf": "讲义-全本.pdf",
+             "难句本.md": "难句本.md", "难句本.pdf": "难句本.pdf", "单词本.md": "单词本.md",
+             "难句本.tsv": "导入/难句本.tsv", "难句本-anki.tsv": "导入/难句本-anki.tsv",
+             "单词本.tsv": "导入/单词本.tsv", "单词本-anki.tsv": "导入/单词本-anki.tsv"}
+FLAT_NAMES = (*OUT_PLACE, "分章")       # 平铺的旧项目：根目录里有这些，又没有 成品/
+# 成品/ 的上一种布局（讲义.md、分章/、复习/）：tidy 挪成现在的名字
+OLD_OUT = {"讲义.md": "讲义-全本.md", "讲义.pdf": "讲义-全本.pdf",
+           "复习/难句本.md": "难句本.md", "复习/难句本.pdf": "难句本.pdf", "复习/单词本.md": "单词本.md"}
 
 
 def out_path(out_dir, name):
-    """生成的文件 name 写到哪：旧项目（平铺）直接放 out_dir，否则按 OUT_PLACE 放进 复习/、导入/。"""
-    sub = "" if P.flat else OUT_PLACE[name]
-    return out_dir / sub / name if sub else out_dir / name
+    """生成的文件 name（逻辑名，见 OUT_PLACE）写到哪：平铺的旧项目直接放 out_dir，否则按 OUT_PLACE。"""
+    return out_dir / name if P.flat else out_dir / OUT_PLACE[name]
+
+
+def unit_pdf_path(out_dir, nums):
+    """分章 PDF：成品/讲义-第01章.pdf（几个单元一起是 讲义-第01-02章.pdf）；平铺的旧项目是 分章/第01章.pdf。"""
+    stem = f"第{'-'.join(f'{n:02d}' for n in nums)}{P.unit}"
+    return out_dir / "分章" / f"{stem}.pdf" if P.flat else out_dir / f"讲义-{stem}.pdf"
+
+
+def old_layout():
+    """项目里还是旧名字的东西：讲义/（源稿）、成品/ 里上一种布局的文件。给 tidy 和提示用。"""
+    out = P.root / OUT_DIR
+    left = [f"{OLD_DOCS_DIR}/"] if P.docs.name == OLD_DOCS_DIR else []
+    if out.is_dir():
+        left += [f"{OUT_DIR}/{k}" for k in OLD_OUT if (out / k).exists()]
+        left += [f"{OUT_DIR}/分章/{f.name}" for f in sorted((out / "分章").glob("*.pdf"))]
+    return left
 
 
 def flat_note():
     if P.flat:
         print(f"（旧项目：输出照旧放在项目根目录。build.py tidy 可以挪进 {OUT_DIR}/）")
+    elif old_layout():
+        print(f"（项目里还有旧名字：{'、'.join(old_layout()[:3])}{' 等' if len(old_layout()) > 3 else ''}。"
+              f"build.py tidy 可以改成新的：{DOCS_DIR}/、{OUT_DIR}/讲义-全本.pdf 这样）")
 
 
 def slug_of(title):
@@ -2219,7 +2248,7 @@ def check_variety_v3(ch, rules, hint):
 
 def post_estimate_v3(ch, est):
     """按行数估计第三版轻读的读后排成 A5 大约几页（rules.json 的 v3.light.md_estimate；算法见那里的 _说明）。
-    算长难句（标题、断句表、注、卡点）、理解题、词条、复述题和提示词；不算试、答、译、理解答案、复述参考、卡句。
+    算长难句（标题、整句、断句表、注、卡点）、理解题、词条、复述题和提示词；不算试、答、译、理解答案、复述参考、卡句。
     断句表按 v3.pdf.chunk_layout 算：对排一块一行，左栏超过「表格每行词数」的折行；下置一块一行（超过「下置每行词数」的折行），
     表下的顺读段另算行数（各块连起来，每块另加两个字的编号和 ／，按「顺读每行字数」折行）。"""
     def rows(p):
@@ -2230,6 +2259,7 @@ def post_estimate_v3(ch, est):
     paras, table = [], 0
     for s in ch["sentences"]:
         paras.append(s["title"])
+        table += math.ceil(word_count(s["quote"]) / est.get("整句每行词数", 12))      # 整句：英文按词数折行
         table += sum(max(1, math.ceil(word_count(c["text"]) / per_row)) for c in s["chunks"])
         if below:
             z = sum(len(CJK.findall(g)) + est["英文词折合字数"] * len(EN_WORD.findall(g)) + 2 for g in s["gloss"])
@@ -2278,7 +2308,7 @@ def check_tag_table(chapters, tags):
     没有 前言.md、或有前言没有这张表，各是一条提示。返回 ([(单元名, 说明)…], [说明…])。"""
     pre = P.docs / "前言.md"
     if not pre.exists():
-        return [], ["没有 讲义/前言.md：第三版的前言要有「## 句子结构」表（照 reference/前言模板.md 写）"]
+        return [], [f"没有 {P.docs.name}/前言.md：第三版的前言要有「## 句子结构」表（照 reference/前言模板.md 写）"]
     table = tag_table(pre.read_text(encoding="utf-8"))
     if table is None:
         return [], ["前言.md 里没有「## 句子结构」表（列出本书用到的结构标签、定义和一个自造例句）"]
@@ -2821,7 +2851,7 @@ def items_html(items):
     return h
 
 
-# ----- 第三版的句子块：标签小框、断句网格、注一行；不印原句、试和答，不用 core_match -----
+# ----- 第三版的句子块：标签小框、断句网格、注一行；先印整句；不印试和答，不用 core_match -----
 
 REREAD = "拆完的句子，按正常速度再读两三遍。"      # 回读：「长难句」栏末尾印一行，难句本开头也印
 LAYOUTS = ("对排", "下置")                        # 断句表的排法，rules.json 的 v3.pdf.chunk_layout
@@ -2893,13 +2923,19 @@ def sent_title_v3(s, num, tag="h3", href=None):
     return f'<div class="sth"><{tag} class="st">{sn} <span>{pinline(s["title"])}</span></{tag}>{tag_boxes(s)}</div>'
 
 
+def quote3_html(s):
+    """句子块的整句：标题下先把原句整句印一遍（同 md 的「> 原句」），再拆。不加粗，主干留给断句表。"""
+    return f'<p class="oq">{esc(s["quote"])}</p>'
+
+
 def sent3_html(n, s, tight=0, pid="s", trans_out=False):
-    """第三版的一个句子块：标题行、断句表、注、表后各项（怎么拆、卡点、译、句型、延伸、赏析）。原句、试、答不印。
+    """第三版的一个句子块：标题行、原句整句、注、断句表、表后各项（怎么拆、卡点、译、句型、延伸、赏析）。
+    顺序照 md：先读全句，再看拆开的。试、答不印（在难句本里）。
     trans_out：译不排在块里（轻读的精讲句，译排到答案区「长难句 · 整句和译」）。pid：长难句 s，卡句 x。"""
     cls = "sent v3" + (" tight" if tight else "") + (" tight2" if tight >= 2 else "")
     items = [it for it in s["items"] if not (trans_out and it["label"] == "译")]
     h = [f'<article class="{cls}" id="c{n}-{pid}{s["i"]}">', '<div class="pt"></div>' + sent_title_v3(s, s["i"]),
-         grid_html(s) + notes_html(s["notes"])]
+         quote3_html(s) + notes_html(s["notes"]) + grid_html(s)]
     return "\n".join(h + items_html(items)) + "</article>"
 
 
@@ -3840,7 +3876,11 @@ p.gz{font-family:var(--kai);font-size:8.5pt;line-height:1.5;color:var(--ink2);pa
   border-top:.6pt solid var(--gl)}
 .gn{margin:0 .5mm 0 .3mm}
 /* 注：表下面一行小字 */
-p.nts{font-size:8pt;line-height:1.5;color:var(--soft);margin:-.8mm 0 2.4mm;break-before:avoid}      /* 不和断句表分到两页 */
+p.nts{font-size:8pt;line-height:1.5;color:var(--soft);margin:0 0 1.6mm;break-after:avoid}      /* 排在整句和断句表之间，不和断句表分到两页 */
+/* 整句：标题下先印原句，左边一条细竖线，和 md 的引用块一个样子 */
+p.oq{font-family:var(--en);font-size:9.5pt;line-height:1.5;color:var(--ink2);margin:0 0 1.8mm;padding-left:2.6mm;
+  border-left:1.2pt solid var(--gl);break-after:avoid;break-inside:avoid}
+.post.tight p.oq,article.tight p.oq{line-height:1.4;margin-bottom:1.4mm}
 .ntl{font:600 7.4pt/1 var(--sans);color:var(--g);letter-spacing:.06em;margin-right:2mm}
 p.nts .c{color:var(--g)}
 /* 「长难句」栏末尾的回读 */
@@ -4622,16 +4662,16 @@ SPILL_WARNED = set()
 
 
 def build_pdf(chapters, matches, out_dir, whole=False):
-    """whole：这一份是全部单元（输出目录里的 讲义.pdf），否则是分章（分章/第NN章.pdf，几个单元一起就是 第01-02章.pdf）。
+    """whole：这一份是全部单元（成品/讲义-全本.pdf），否则是分章（讲义-第NN章.pdf，几个单元一起就是 讲义-第01-02章.pdf）。
     全部单元或多于一个单元时排成合订本。"""
     nums = [c["n"] for c in chapters]
     by_n = {c["n"]: c for c in chapters}
     book = whole or len(chapters) > 1
     if whole:
-        target = out_dir / "讲义.pdf"
+        target = out_path(out_dir, "讲义.pdf")
     else:
-        target = out_dir / "分章" / f"第{'-'.join(f'{n:02d}' for n in nums)}{P.unit}.pdf"
-        target.parent.mkdir(parents=True, exist_ok=True)
+        target = unit_pdf_path(out_dir, nums)
+    target.parent.mkdir(parents=True, exist_ok=True)
     html_of = lambda pages=None: page_html(chapters, matches, pages, TIGHT, SECT, UNKEEP, book)
     render_pdf(html_of(), target)
     words = None
@@ -4759,7 +4799,7 @@ def cmd_pdf(args):
     if not avail:
         sys.exit(no_units())
     if args == ["all"]:
-        jobs = [avail] + ([[n] for n in avail] if len(avail) > 1 else [])     # 只有一个单元时只出 讲义.pdf
+        jobs = [avail] + ([[n] for n in avail] if len(avail) > 1 else [])     # 只有一个单元时只出 讲义-全本.pdf
     else:
         if not all(a.isdigit() for a in args):
             sys.exit(f"pdf 后面写单元号、all 或 --out 目录，不认识：{' '.join(args)}")
@@ -4809,7 +4849,7 @@ def cmd_md(args):
     if args:
         sys.exit(f"md 只接项目目录和 --out，不认识：{' '.join(args)}")
     if len(P.units) == 1:
-        print(f"只有一个单元，讲义/{unit_path(P.units[0][0]).name} 就是全文，不生成合订本")
+        print(f"只有一个单元，{P.docs.name}/{unit_path(P.units[0][0]).name} 就是全文，不生成合订本")
         return 0
     nums = available()
     if not nums:
@@ -4834,32 +4874,47 @@ def cmd_md(args):
         parts.append(f'<a id="ch{ch["n"]}"></a>\n\n' + "\n".join(lines).strip("\n") + "\n")
     flat_note()
     out_dir.mkdir(parents=True, exist_ok=True)
-    target = out_dir / "讲义.md"
+    target = out_path(out_dir, "讲义.md")
     target.write_text("\n---\n\n".join(parts), encoding="utf-8")
     print(target)
 
 
 def cmd_tidy(args):
-    """旧项目：根目录里的输出挪进 成品/（按 OUT_PLACE 分进 复习/、导入/）。只挪生成的文件；成品/ 里已有同名的不挪。"""
+    """把旧名字改成新的，只挪不覆盖（目标已有同名的不挪）：
+    讲义/ → 源稿/；根目录里平铺的输出 → 成品/；成品/ 里上一种布局（讲义.md、分章/第NN章.pdf、复习/…）→ 讲义-全本.md、
+    讲义-第NN章.pdf、难句本.md 这样。挪空了的 分章/、复习/ 删掉。"""
     if args:
         sys.exit(f"tidy 只接项目目录，不认识：{' '.join(args)}")
-    left = [name for name in OUT_PLACE if (P.root / name).exists()]
-    if not left:
-        print(f"根目录里没有要挪的输出，输出都在 {OUT_DIR}/ 里")
-        return 0
+    root, out = P.root, P.root / OUT_DIR
+    moves = []                                      # (原路径, 新路径)
+    if P.docs.name == OLD_DOCS_DIR:
+        moves.append((P.docs, root / DOCS_DIR))
     P.flat = False
-    out, kept = P.root / OUT_DIR, []
-    for name in left:
-        target = out_path(out, name)
-        if target.exists():
-            kept.append(name)
+    for name in OUT_PLACE:                          # 平铺的旧项目
+        if (root / name).exists():
+            moves.append((root / name, out_path(out, name)))
+    moves += [(f, out / f"讲义-{f.name}") for f in sorted((root / "分章").glob("*.pdf"))]
+    for old, new in OLD_OUT.items():                # 成品/ 的上一种布局
+        if (out / old).exists():
+            moves.append((out / old, out / new))
+    moves += [(f, out / f"讲义-{f.name}") for f in sorted((out / "分章").glob("*.pdf"))]
+    if not moves:
+        print(f"没有要改的旧名字：源稿在 {DOCS_DIR}/，输出都在 {OUT_DIR}/ 里")
+        return 0
+    kept = []
+    for src, dst in moves:
+        if dst.exists():
+            kept.append((src, dst))
             continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        (P.root / name).rename(target)
-        print(f"{name} → {target.relative_to(P.root)}")
-    for name in kept:
-        print(f"  ! {OUT_DIR}/ 里已有 {name}，根目录这份没挪：确认不要了就删掉")
-    print(f"计划、台账、检查和审稿记录如果还在 README.md 里，挪进 制作记录/计划与检查.md（手动）")
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        src.rename(dst)
+        print(f"{src.relative_to(root)} → {dst.relative_to(root)}")
+    for d in (root / "分章", out / "分章", out / "复习"):
+        if d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+    for src, dst in kept:
+        print(f"  ! 已有 {dst.relative_to(root)}，{src.relative_to(root)} 没挪：确认不要了就删掉")
+    print("README.md 里指向旧路径的链接（讲义/、成品/讲义.pdf、成品/分章/、成品/复习/）要手动改")
     return 1 if kept else 0
 
 
