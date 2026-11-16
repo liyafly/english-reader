@@ -178,6 +178,8 @@ def load_project(path):
     if isinstance(P.format, bool) or P.format not in (2, 3):
         sys.exit(f"设置.json 的 format 只能写 3（第三版）；第一、二版的项目不写这个键，不是「{P.format}」")
     P.slug = str(cfg.get("slug") or "").strip() or slug_of(P.title)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", P.slug):      # 卡片 id 的开头、Anki 的标签都用它
+        sys.exit(f"设置.json 的 slug 只能用英文字母、数字、- 和 _，开头是字母或数字，不是「{P.slug}」")
 
 
 # 目录名：源稿/ 是人写的讲义（旧项目叫 讲义/），成品/ 是脚本生成的

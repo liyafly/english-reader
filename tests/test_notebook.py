@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from html.parser import HTMLParser
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -33,10 +34,8 @@ STUCK = (FIX / "卡句.txt").read_text(encoding="utf-8")
 TITLE = "The Wind in the Willows"
 TAG_ORDER = [l.split("\t")[0] for l in (SKILL / "reference" / "结构标签.tsv").read_text(encoding="utf-8").splitlines()
              if l.strip() and not l.startswith("#")][1:]
-SB_HEAD = ("#separator:tab\n#html:false\n#columns:id\t原句\t注\t试\t答\t主干\t断句\t顺读\t卡点\t译\t结构\t出处\t类型\n"
-           "#guid column:1\n#tags column:11\n")
-WB_HEAD = ("#separator:tab\n#html:false\n#columns:id\t词\t音标\t词性\t释义\t原句\t原句译\t章\t类型\t掌握\t级别\n"
-           "#guid column:1\n")
+ANKI_HEAD = ("#separator:tab\n#html:true\n#notetype:问答题\n#guid column:1\n#tags column:4\n"
+             "#if matches:update current\n")
 LEVEL = re.compile(r"(?:(?:A1|A2|B1|B2|C1|C2)(?:，估)?|未定级)?")
 
 
@@ -104,6 +103,45 @@ def groups(part):
 
 def tsv_rows(text):
     return [l.split("\t") for l in text.splitlines() if not l.startswith("#")]
+
+
+class Balance(HTMLParser):
+    """HTML 标签配对吗（br 不用配）。"""
+    def __init__(self):
+        super().__init__()
+        self.stack, self.bad = [], False
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "br":
+            self.stack.append(tag)
+
+    def handle_endtag(self, tag):
+        if not self.stack or self.stack.pop() != tag:
+            self.bad = True
+
+
+def check_anki(test, anki, tsv):
+    """-anki.tsv 的共同要求：文件头、每行 4 列、正反面不空、HTML 配对、id 和没有表头的 tsv 一一相同。"""
+    test.assertTrue(anki.startswith(ANKI_HEAD))
+    test.assertNotIn("#columns", anki)
+    lines = anki[len(ANKI_HEAD):].split("\n")
+    test.assertEqual(lines[-1], "")
+    cards = [l.split("\t") for l in lines[:-1]]
+    for c in cards:
+        test.assertEqual(len(c), 4, c)
+        test.assertFalse(c[0].startswith("#"), c[0])                      # Anki 把 # 开头的行当注释
+    test.assertEqual([c[0] for c in cards], [r[0] for r in tsv_rows(tsv)])
+    for c in cards:
+        test.assertNotRegex(c[1] + c[2], r"<b></b>", c[0])
+        test.assertTrue(c[1] and c[2], c[0])
+        test.assertFalse(any(x.startswith('"') or "\r" in x for x in c), c[0])
+        test.assertRegex(c[3], r"^\S+( \S+)* \S+::c\d\d$", c[0])              # 标签用空格隔开，最后是 slug::c01
+        for side in c[1:3]:
+            test.assertTrue(side.startswith("<div"), c[0])
+            b = Balance()
+            b.feed(side)
+            test.assertFalse(b.bad or b.stack, c[0])
+    return {c[0]: c for c in cards}
 
 
 def sha_id(quote, slug="willows"):
@@ -254,8 +292,23 @@ class TestSentences(unittest.TestCase):
         self.assertNotIn("· ", self.tsv)
 
     def test_anki(self):
-        self.assertTrue(self.anki.startswith(SB_HEAD))
-        self.assertEqual(self.anki[len(SB_HEAD):], self.tsv)
+        cards = check_anki(self, self.anki, self.tsv)
+        r = self.rows["第 2 章 句 1"]
+        front, back, tags = cards[r[0]][1:]
+        self.assertIn("small wonder", front)
+        self.assertIn("注：bolt 猛冲", front)
+        self.assertIn("<b>试：</b>真正的主语从哪个词开始？", front)
+        self.assertNotIn("答：", front)
+        self.assertIn("<b>答：</b>that", back)
+        self.assertIn("<b>主干：</b>It was", back)
+        self.assertIn("It was small wonder,<br>", back)                  # 断句和顺读一块对一块
+        self.assertIn(">难怪（这件事）——</span>", back)
+        self.assertIn("<b>译：</b>所以难怪", back)
+        self.assertEqual(tags, "难句本 精讲 it占位 并列 willows::c02")
+        drill = cards[self.rows["第 2 章 句 2"][0]]
+        self.assertNotIn("卡点：", drill[2])
+        self.assertTrue(drill[3].startswith("难句本 练习 "))
+        self.assertIn("难句本 卡句·没说 ", cards[self.rows["第 1 章 卡句 2"][0]][3])
 
 
 class TestSentenceVariants(Temp):
@@ -419,8 +472,107 @@ class TestWords(unittest.TestCase):
         self.assertEqual(self.md.count("\n| ") - 2 * 2, len(self.rows))       # 每节一行表头、一行分隔
 
     def test_anki(self):
-        self.assertTrue(self.anki.startswith(WB_HEAD))
-        self.assertEqual(self.anki[len(WB_HEAD):], self.tsv)
+        cards = check_anki(self, self.anki, self.tsv)
+        front, back, tags = cards["willows-c02-make_for"][1:]
+        self.assertIn(">make for</div>", front)
+        self.assertIn("he <b>made for</b>", front)                         # 短语按原形对上，并成一段
+        self.assertIn("朝……走去", back)
+        self.assertIn("原句：他朝那条又陡又小的隧道奔去", back)
+        self.assertIn("第 2 章 · 词条", back)
+        self.assertEqual(tags, "单词本 词条 willows::c02")
+        self.assertIn("/miːn/ adj.", cards["willows-c01-mean"][2])
+        self.assertIn("<b>bewitched</b>", cards["willows-c01-bewitch"][1])
+        self.assertEqual(cards["willows-c02-bolt"][3], "单词本 注 willows::c02")
+        plain_of = lambda h: re.sub(r"<[^>]+>", "", h)
+        for c in cards.values():                                       # 加粗的都是原句里的字
+            for b in re.findall(r"<b>(.*?)</b>", c[1]):
+                self.assertIn(b, plain_of(c[1].split("</div>", 1)[1]), c[0])
+
+
+class TestAnkiParts(unittest.TestCase):
+    """Anki 卡的零件：加粗哪几个词、转义。"""
+    @classmethod
+    def setUpClass(cls):
+        cls.nb = B.sibling("notebook")
+        cls.wl = B.Words(FIX)
+
+    def bold(self, head, sentence):
+        spans = self.nb.head_spans(head, sentence, self.wl, B)
+        return re.findall(r"<b>(.*?)</b>", self.nb.bold_spans(sentence, spans))
+
+    def test_spans(self):
+        self.assertEqual(self.bold("share sth out", "these would be shared out equally"), ["shared out"])
+        self.assertEqual(self.bold("think sth out", "in thinking anything out for themselves"), ["thinking", "out"])
+        self.assertEqual(self.bold("speak one’s mind", "no one dared speak his mind"), ["speak", "mind"])
+        self.assertEqual(self.bold("hen", "the hen-houses were shut"), ["hen"])           # 连字符：只取对上的那段
+        self.assertEqual(self.bold("knacker", "the knacker’s van"), ["knacker"])           # ’s 不算
+        self.assertEqual(self.bold("comrade", "‘Comrades, you have heard"), ["Comrades"])
+        self.assertEqual(self.bold("wit", "within the hour"), [])                         # 不是词首就算
+        self.assertEqual(self.bold("bolt", ""), [])
+
+    def test_spans_fallback(self):
+        """整个短语对不上时逐词找；对不全就跳过小词；词头本来带 ’s 的照样加粗。"""
+        self.assertEqual(self.bold("take sb in", "she took in the boy"), ["took in"])
+        self.assertEqual(self.bold("take to doing", "he had taken to speaking of him"), ["taken"])
+        self.assertEqual(self.bold("rack one’s brain", "they racked their dim memories"), ["racked"])
+        self.assertEqual(self.bold("for heaven’s sake", "Oh, for heaven’s sake, stop!"), ["for heaven’s sake"])
+        self.assertEqual(self.bold("law", "his mother-in-law’s house"), ["law"])
+        self.assertEqual(self.bold("cast a look", "casting a peculiar sidelong look at him"), ["casting a", "look"])
+        self.assertEqual(self.bold("cast a look", "casting stones, and a week later a look"), ["casting"])   # 隔太远不算
+
+    def test_spans_start(self):
+        """start：从引的那段开始找（同一个词前面也出现过）。"""
+        s = "He made a boat. Then he made for the door."
+        self.assertEqual(self.nb.head_spans("make for", s, self.wl, B), [(24, 32)])
+        self.assertEqual(self.nb.head_spans("make", s, self.wl, B), [(3, 7)])
+        self.assertEqual(self.nb.head_spans("make", s, self.wl, B, self.nb.frag_start(s, "he made for the")), [(24, 28)])
+        self.assertEqual(self.nb.frag_start(s, "not there"), 0)
+
+    def test_join_overlap(self):
+        self.assertEqual(self.nb.join_spans("abcdefghij", [(0, 10), (2, 5)]), [(0, 10)])
+        self.assertEqual(self.nb.bold_spans("abcdefghij", [(2, 5), (0, 10)]), "<b>abcdefghij</b>")
+        self.assertEqual(self.nb.join_spans("pass on it", [(5, 7), (0, 4)]), [(0, 7)])
+
+    def test_placeholder_curly(self):
+        """词头里弯撇号的 one’s 也是占位词（读前词找原句时一样）。"""
+        self.assertEqual(self.nb.head_pattern("change one’s tune", self.wl, B)[1], None)
+
+    def test_sentence_card_uneven(self):
+        """断句和顺读块数不一样：断句一块一行，顺读另起一段，不报错。"""
+        e = {"id": "x-1", "block": {"quote": "A b, c d.", "chunks": [{"text": "A b,", "md": "**A** b,", "depth": 0},
+                                                                     {"text": "c d.", "md": "c d.", "depth": 1}],
+                                    "gloss": ["甲乙丙丁"], "try": {"q": "问", "a": "答"}, "items": []},
+             "stuck": False, "type": "精讲", "tags": ["并列"], "source": "T 第 1 章 句 1", "n": 1}
+        with mock.patch.object(B, "P", mock.Mock(slug="x")):
+            card = self.nb.sentence_card(e, B)
+        self.assertIn('<div style="margin:.35em 0 0 0.8em">A b,</div>', card[2])
+        self.assertIn('<div style="margin:.35em 0 0 1.6em">c d.</div>', card[2])
+        self.assertIn(">甲乙丙丁</div>", card[2])
+        self.assertEqual(card[3], "难句本 精讲 并列 x::c01")
+        b = Balance()
+        b.feed(card[2])
+        self.assertFalse(b.bad or b.stack)
+
+    def test_escape(self):
+        self.assertEqual(self.nb.bold_spans("a < b & c", [(4, 5)]), "a &lt; <b>b</b> &amp; c")
+        r = {"id": "x-c01-a", "head": "a<b", "ipa": "", "pos": "", "gloss": "甲 & 乙", "sentence": "x < y",
+             "bold": [], "trans": "", "n": 1, "type": "注", "level": "", "mastery": ""}
+        with mock.patch.object(B, "P", mock.Mock(slug="x", single=False, unit="章", units=[], title="T")):
+            card = self.nb.word_card(r, B)
+        self.assertIn(">a&lt;b</div>", card[1])
+        self.assertIn("x &lt; y", card[1])
+        self.assertIn("甲 &amp; 乙", card[2])
+        self.assertEqual(card[3], "单词本 注 x::c01")
+
+
+class TestSlug(Temp):
+    def test_bad_slug(self):
+        """slug 带空格或 # 开头：报错退出（卡片 id 的开头、Anki 的层级标签都用它）。"""
+        for bad in ("my book", "#willows"):
+            root = make_project(self.dir / "p", [(1, V3J, "精读")], slug=bad)
+            code, out = run("words", root, "--anki")
+            self.assertNotEqual(code, 0)
+            self.assertIn("slug 只能用英文字母、数字", out)
 
 
 class TestWordsOldFormats(Temp):

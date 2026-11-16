@@ -2,7 +2,7 @@
 """难句本、单词本、卡句定位（第三版）。不单独运行，由 build.py 转发：
 
   python3 build.py sentences [项目] [--anki] [--pdf] [--out 目录]
-        难句本.md、难句本.tsv（只支持第三版的项目）。--anki 另出 难句本-anki.tsv（开头带 Anki 的文件头）；
+        难句本.md、难句本.tsv（只支持第三版的项目）。--anki 另出 难句本-anki.tsv（Anki 自带的「问答题」直接能导）；
         --pdf 另出 难句本.pdf（A5，排法和排版程序同 build.py pdf）
   python3 build.py words     [项目] [--anki] [--out 目录]
         单词本.md、单词本.tsv（三种格式的项目都行）。--anki 另出 单词本-anki.tsv
@@ -16,6 +16,7 @@ parse_chapter、source_path、stuck_words、load_tags、Words 这些。check 在
 """
 import difflib
 import hashlib
+import html
 import json
 import math
 import re
@@ -26,8 +27,15 @@ REREAD = "拆完的句子，按正常速度再读两三遍。"           # 回�
 SB_INTRO = f"先看「一、自己拆」：读原句，答下面的问题。再翻到「二、对照」。编号开头是章号，没读到的章先跳过。{REREAD}"
 SB_COLUMNS = ("id", "原句", "注", "试", "答", "主干", "断句", "顺读", "卡点", "译", "结构", "出处", "类型")
 WB_COLUMNS = ("id", "词", "音标", "词性", "释义", "原句", "原句译", "章", "类型", "掌握", "级别")
-SB_ANKI = ("#separator:tab\n#html:false\n#columns:" + "\t".join(SB_COLUMNS) + "\n#guid column:1\n#tags column:11\n")
-WB_ANKI = ("#separator:tab\n#html:false\n#columns:" + "\t".join(WB_COLUMNS) + "\n#guid column:1\n")
+# -anki.tsv：每行 4 列 id | 正面 HTML | 背面 HTML | 标签，给 Anki 自带的「问答题」（英文界面叫 Basic）。
+# 不写 #columns：Anki 按列的顺序对字段（跳过 guid 列和标签列），中英文界面都对得上；id 放 guid 列，重新导入原地更新
+# #if matches：guid 对上的直接更新，不看导入窗口上次记住的选项（认不得这一行的旧版 Anki 会跳过它）
+ANKI_HEAD = ("#separator:tab\n#html:true\n#notetype:问答题\n#guid column:1\n#tags column:4\n"
+             "#if matches:update current\n")
+ANKI_MUTED = "opacity:.65"                            # 次要信息调淡，不用固定的灰色，夜间模式也看得清
+ANKI_LEFT = '<div style="text-align:left">'           # 问答题的样式是居中，长句居中难读
+FILLER = {"a", "an", "the", "to", "of", "in", "on", "at", "be", "do", "doing"}   # 逐词找也对不全时，跳过这些小词再找
+NEAR_WORDS = 5                                       # 逐词找：后一个词离前一个最多隔这么多词
 SB_FILES = ("难句本.md", "难句本.tsv", "难句本-anki.tsv")
 WB_FILES = ("单词本.md", "单词本.tsv", "单词本-anki.tsv")
 ANSWER_LABELS = ("怎么拆", "卡点", "译")           # 对照里抄的表后项；句型、延伸、赏析留在讲义里
@@ -111,8 +119,8 @@ def write(path, text):
     print(path)
 
 
-def tsv(rows, head=""):
-    return head + "".join("\t".join(field(c) for c in r) + "\n" for r in rows)
+def tsv(rows):
+    return "".join("\t".join(field(c) for c in r) + "\n" for r in rows)
 
 
 def dedupe_ids(ids):
@@ -337,20 +345,113 @@ def book_md(book, build):
     return "\n".join(out).rstrip("\n") + "\n"
 
 
+def book_entries(book):
+    """难句本的句子，顺序同难句本.md：按组，组内按单元号、原文位置。"""
+    return [e for g in book["groups"] for e in g["items"]]
+
+
+def sentence_fields(e):
+    """一句的各项（tsv 和 Anki 卡共用）：断句 chunks、顺读 gloss 是成对的列表；练习句不给卡点和译。"""
+    b = e["block"]
+    t = b.get("try") or {}
+    drill = not e["stuck"] and e["type"] == "练习"
+    return {"id": e["id"], "quote": b["quote"], "notes": notes_text(b.get("notes", [])), "q": plain(t.get("q")),
+            "a": plain(t.get("a")), "trunk": trunk(b.get("chunks", [])), "chunks": b.get("chunks", []),
+            "gloss": b.get("gloss", []), "stuck": "" if drill else plain(item_text(b, "卡点")),
+            "trans": "" if drill else plain(item_text(b, "译")), "tags": [x.replace(" ", "") for x in e["tags"]],
+            "source": e["source"], "type": e["type"], "n": e["n"]}
+
+
 def book_rows(book):
-    """难句本.tsv 的行（13 列，见 SB_COLUMNS），顺序同难句本.md：按组，组内按单元号、原文位置。"""
+    """难句本.tsv 的行（13 列，见 SB_COLUMNS）。"""
     rows = []
-    for g in book["groups"]:
-        for e in g["items"]:
-            b = e["block"]
-            t = b.get("try") or {}
-            drill = not e["stuck"] and e["type"] == "练习"
-            rows.append([e["id"], b["quote"], notes_text(b.get("notes", [])), plain(t.get("q")), plain(t.get("a")),
-                         trunk(b.get("chunks", [])), " / ".join(c["text"] for c in b.get("chunks", [])),
-                         "／".join(b.get("gloss", [])), "" if drill else plain(item_text(b, "卡点")),
-                         "" if drill else plain(item_text(b, "译")),
-                         " ".join(x.replace(" ", "") for x in e["tags"]), e["source"], e["type"]])
+    for f in map(sentence_fields, book_entries(book)):
+        rows.append([f["id"], f["quote"], f["notes"], f["q"], f["a"], f["trunk"],
+                     " / ".join(c["text"] for c in f["chunks"]), "／".join(f["gloss"]), f["stuck"], f["trans"],
+                     " ".join(f["tags"]), f["source"], f["type"]])
     return rows
+
+
+# ---------- Anki ----------
+
+def esc(s):
+    """HTML 转义（文件头声明了 #html:true）；制表符、换行先并成空格。"""
+    return html.escape(field(s), quote=False)
+
+
+def anki_tags(build, kind, n, extra=()):
+    """标签：难句本或单词本、类型、结构标签（难句本）、「slug::c01」（层级标签，Anki 里按章筛）。标签里不能有空格。"""
+    tags = [kind, *extra, f"{build.P.slug}::c{n:02d}"]
+    return " ".join(re.sub(r"\s+", "_", t.strip()) for t in tags if t and t.strip())
+
+
+def anki_tsv(cards):
+    return ANKI_HEAD + "".join("\t".join(c) + "\n" for c in cards)
+
+
+def bold_spans(sentence, spans):
+    """原句转义后，spans（[(起, 止)…]，按原句的位置）里的词加粗。"""
+    out, at = [], 0
+    for a, b in join_spans(sentence, spans):
+        out += [html.escape(sentence[at:a], quote=False), "<b>", html.escape(sentence[a:b], quote=False), "</b>"]
+        at = b
+    return "".join(out) + html.escape(sentence[at:], quote=False)
+
+
+def sentence_card(e, build):
+    """难句本的一张卡。正面：原句、注、试。背面：答、主干，断句和顺读一块对一块上下叠着排（块数对不上时分开排），
+    卡点、译，最后一行小字写出处、类型。"""
+    f = sentence_fields(e)
+    front = ANKI_LEFT + f'<div style="font-size:1.1em;line-height:1.6">{esc(f["quote"])}</div>'
+    if f["notes"]:
+        front += f'<div style="margin-top:.6em;font-size:.8em;{ANKI_MUTED}">注：{esc(f["notes"])}</div>'
+    if f["q"]:
+        front += f'<div style="margin-top:.8em"><b>试：</b>{esc(f["q"])}</div>'
+    front += "</div>"
+    back = ANKI_LEFT
+    if f["a"]:
+        back += f'<div><b>答：</b>{esc(f["a"])}</div>'
+    if f["trunk"]:
+        back += f'<div style="margin-top:.4em"><b>主干：</b>{esc(f["trunk"])}</div>'
+    chunks, gloss = f["chunks"], f["gloss"]
+    if chunks:
+        back += '<div style="margin-top:.8em"><b>断句和顺读：</b></div>'
+        pad = lambda c: f"margin:.35em 0 0 {.8 * (1 + c.get('depth', 0)):.1f}em"
+        if len(chunks) == len(gloss):
+            back += "".join(f'<div style="{pad(c)}">{esc(c["text"])}<br>'
+                            f'<span style="font-size:.85em;{ANKI_MUTED}">{esc(g)}</span></div>'
+                            for c, g in zip(chunks, gloss))
+        else:
+            back += "".join(f'<div style="{pad(c)}">{esc(c["text"])}</div>' for c in chunks)
+            if gloss:
+                back += (f'<div style="margin:.5em 0 0 .8em;font-size:.85em;{ANKI_MUTED}">'
+                         f'{esc("／".join(gloss))}</div>')
+    if f["stuck"]:
+        back += f'<div style="margin-top:.8em"><b>卡点：</b>{esc(f["stuck"])}</div>'
+    if f["trans"]:
+        back += f'<div style="margin-top:.6em"><b>译：</b>{esc(f["trans"])}</div>'
+    back += (f'<div style="margin-top:.8em;font-size:.75em;{ANKI_MUTED}">'
+             f'{esc(" · ".join(x for x in (f["source"], f["type"]) if x))}</div></div>')
+    return [f["id"], front, back, anki_tags(build, "难句本", f["n"], [f["type"], *f["tags"]])]
+
+
+def word_card(r, build):
+    """单词本的一张卡。正面：词（大字），下面是原句，原句里这个词加粗。背面：音标 词性、释义、原句译，
+    最后一行小字写单元、类型、级别、掌握。"""
+    front = f'<div style="font-size:1.5em;font-weight:bold">{esc(r["head"])}</div>'
+    if r["sentence"]:
+        front += (ANKI_LEFT + '<div style="margin-top:.8em;font-size:.85em;line-height:1.5">'
+                  f'{bold_spans(field(r["sentence"]), r["bold"])}</div></div>')
+    back = ANKI_LEFT
+    if r["ipa"] or r["pos"]:
+        back += f'<div style="{ANKI_MUTED}">{esc(" ".join(x for x in (r["ipa"], r["pos"]) if x))}</div>'
+    back += f'<div style="font-size:1.15em;margin-top:.3em">{esc(r["gloss"])}</div>'
+    if r["trans"]:
+        back += f'<div style="margin-top:.6em;font-size:.9em">原句：{esc(r["trans"])}</div>'
+    meta = [build.unit_name(r["n"]), r["type"], r["level"], r["mastery"]]
+    back += (f'<div style="margin-top:.8em;font-size:.75em;{ANKI_MUTED}">'
+             f'{esc(" · ".join(m for m in meta if m))}</div></div>')
+    return [r["id"], front, back, anki_tags(build, "单词本", r["n"], [r["type"]])]
 
 
 def cmd_sentences(args, build):
@@ -369,7 +470,7 @@ def cmd_sentences(args, build):
     write(build.out_path(out_dir, SB_FILES[0]), book_md(book, build))
     write(build.out_path(out_dir, SB_FILES[1]), tsv(rows))
     if "--anki" in flags:
-        write(build.out_path(out_dir, SB_FILES[2]), tsv(rows, SB_ANKI))
+        write(build.out_path(out_dir, SB_FILES[2]), anki_tsv([sentence_card(e, build) for e in book_entries(book)]))
     elif build.out_path(out_dir, SB_FILES[2]).exists():
         print(f"  ! {SB_FILES[2]} 是以前加 --anki 生成的，这次没有更新")
     see = sum(len(g["see"]) for g in book["groups"])
@@ -831,18 +932,100 @@ def is_phrase(head, pos):
     return pos.rstrip(".") == "phr" or bool(re.search(r"\s", head.strip()))
 
 
+def is_placeholder(t, build):
+    return t.lower().replace("’", "'") in build.PLACEHOLDERS     # 词头里的 one’s 常用弯撇号
+
+
 def head_pattern(head, wl, build):
     """词头 → 比对用的 [原形集合或 None…]；None 是 sb、sth 这类占位词（原文里可以是 1–4 个词）。"""
-    return [None if t.lower() in build.PLACEHOLDERS else wl.keys(t) for t in EN_WORD.findall(head)]
+    return [None if is_placeholder(t, build) else wl.keys(t) for t in EN_WORD.findall(head)]
+
+
+def match_idx(toks, i, want):
+    """want 从 toks[i] 开始对得上时，返回对上的词（不含占位词）的下标；对不上是 None。toks 是各词的原形集合。"""
+    if not want:
+        return []
+    if want[0] is None:
+        for k in range(1, 5):
+            got = match_idx(toks, i + k, want[1:]) if i + k <= len(toks) else None
+            if got is not None:
+                return got
+        return None
+    if i < len(toks) and want[0] & toks[i]:
+        got = match_idx(toks, i + 1, want[1:])
+        return None if got is None else [i] + got
+    return None
 
 
 def match_at(toks, i, want):
-    """want 从 toks[i] 开始对得上吗。toks 是各词的原形集合。"""
-    if not want:
-        return True
-    if want[0] is None:
-        return any(match_at(toks, i + k, want[1:]) for k in range(1, 5) if i + k <= len(toks))
-    return i < len(toks) and bool(want[0] & toks[i]) and match_at(toks, i + 1, want[1:])
+    """want 从 toks[i] 开始对得上吗。"""
+    return match_idx(toks, i, want) is not None
+
+
+def word_keys(t, wl):
+    """比对用的原形集合；带连字符的词也按拆开的各段比。"""
+    return wl.keys(t).union(*(wl.keys(p) for p in t.split("-") if p))
+
+
+def head_spans(head, sentence, wl, build, start=0):
+    """原句里要加粗的词（[(起, 止)…]）：先按原形找整个短语（sb、sth 可以是 1–4 个词），第一处；对不上就逐词找，
+    每个词取上一个词之后、隔不到 NEAR_WORDS 个词（a、to、in 这类小词要紧挨着）的第一处；所有词都找到才算，不然跳过 a、to、be 这类小词再找一遍。
+    start：从原句的这个位置往后找（词条的原句是整句，「原文」引的那段在中间）。都找不到是 []。"""
+    found = [m for m in EN_WORD.finditer(sentence) if m.start() >= start]
+    toks = [word_keys(m.group(0), wl) for m in found]
+    words = [t for t in EN_WORD.findall(head) if not is_placeholder(t, build)]
+    want = head_pattern(head, wl, build)
+    if words:
+        for i in range(len(toks)):
+            got = match_idx(toks, i, want)
+            if got is not None:
+                return join_spans(sentence, [part_span(found[k], t, wl) for k, t in zip(got, words)])
+    for picked in (words, [t for t in words if t.lower() not in FILLER]):
+        spans, prev = [], None
+        for t in picked:
+            keys = wl.keys(t)
+            near = 1 if t.lower() in FILLER else NEAR_WORDS                  # 小词要紧挨着前一个词
+            end = len(toks) if prev is None else min(len(toks), prev + 1 + near)
+            k = next((k for k in range(0 if prev is None else prev + 1, end) if keys & toks[k]), None)
+            if k is None:
+                break
+            spans.append(part_span(found[k], t, wl))
+            prev = k
+        else:
+            if spans:
+                return join_spans(sentence, spans)
+    first = next((t for t in words if t.lower() not in FILLER), None)        # 只认得出主词：加粗主词
+    k = next((k for k, x in enumerate(toks) if first and wl.keys(first) & x), None)
+    return [] if k is None else [part_span(found[k], first, wl)]
+
+
+def part_span(m, head_word, wl):
+    """原句里对上的一个词：带连字符的只取对上的那段（hen-houses 里的 hen）；所有格的 ’s 不算，
+    除非词头里这个词本来就带 ’s（for heaven’s sake）。"""
+    a, b = m.span()
+    word = m.group(0)
+    keys = wl.keys(head_word)
+    if "-" in word and not keys & wl.keys(word):
+        at = 0
+        for part in word.split("-"):
+            if part and keys & wl.keys(part):
+                a, b, word = a + at, a + at + len(part), part
+                break
+            at += len(part) + 1
+    if re.search(r"['’]s$", word) and not re.search(r"['’]s$", head_word) and b - 2 > a:
+        b -= 2
+    return a, b
+
+
+def join_spans(sentence, spans):
+    """重叠的、中间只隔着空白或 ’s 的几段并成一段：短语加粗成 <b>pass on</b>，不是 <b>pass</b> <b>on</b>。"""
+    out = []
+    for a, b in sorted(spans):
+        if out and (a <= out[-1][1] or re.fullmatch(r"(?:['’]s)?\s*", sentence[out[-1][1]:a])):
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
 
 
 def first_sentence(head, sent_toks, S, wl, build):
@@ -887,8 +1070,7 @@ def word_rows(build):
     rows = []
     for ch in chapters:
         n, S = ch["n"], get(ch["n"])
-        sent_toks = [[wl.keys(t).union(*(wl.keys(p) for p in t.split("-") if p)) for t in EN_WORD.findall(s)]
-                     for s in S.sentences] if (ch["preread"] and S) else []
+        sent_toks = [[word_keys(t, wl) for t in EN_WORD.findall(s)] for s in S.sentences] if (ch["preread"] and S) else []
         for w in (ch["preread"] or {}).get("words", []):
             sent = first_sentence(w["head"], sent_toks, S, wl, build) if S else ""
             if not sent:
@@ -906,7 +1088,7 @@ def word_rows(build):
             if frag and not sent:
                 warns.append(f"{build.unit_name(n)}的词条 {u['head']}：「原文」那一段在原文里没找到，原句一列照抄那一段")
             rows.append({"n": n, "head": u["head"], "ipa": "" if phrase else ipa, "pos": "" if phrase else pos,
-                         "gloss": gloss or u["text"], "sentence": sent or frag,
+                         "gloss": gloss or u["text"], "sentence": sent or frag, "frag": frag,
                          "trans": u["trans"][0] if u["trans"] else "", "type": "词条", "mastery": u["level"],
                          "level": level_of(wl, build.dict_head(u["dict"]) or u["head"], pos)})
         for b in (ch.get("sentences") or []) + (ch.get("extra") or []):
@@ -916,7 +1098,19 @@ def word_rows(build):
     ids = dedupe_ids([f"{build.P.slug}-c{r['n']:02d}-" + re.sub(r"\s+", "_", r["head"].strip().lower()) for r in rows])
     for r, i in zip(rows, ids):
         r["id"] = i
+        s = field(r["sentence"])                                                # 加粗的位置，只有 Anki 卡用
+        r["bold"] = (head_spans(r["head"], s, wl, build, frag_start(s, r.get("frag", "")))
+                     or head_spans(r["head"], s, wl, build))
     return rows, warns
+
+
+def frag_start(sentence, frag):
+    """「原文」引的那段在原句里从哪儿开始：按开头几个英文词找（标点、引号不比），找不到是 0。"""
+    lead = EN_WORD.findall(frag)[:4]
+    if not lead:
+        return 0
+    m = re.search(r"\W+".join(map(re.escape, lead)), sentence, re.I)
+    return m.start() if m else 0
 
 
 def words_md(build, rows):
@@ -954,7 +1148,7 @@ def cmd_words(args, build):
     write(build.out_path(out_dir, WB_FILES[0]), words_md(build, rows))
     write(build.out_path(out_dir, WB_FILES[1]), tsv(table))
     if "--anki" in flags:
-        write(build.out_path(out_dir, WB_FILES[2]), tsv(table, WB_ANKI))
+        write(build.out_path(out_dir, WB_FILES[2]), anki_tsv([word_card(r, build) for r in rows]))
     elif build.out_path(out_dir, WB_FILES[2]).exists():
         print(f"  ! {WB_FILES[2]} 是以前加 --anki 生成的，这次没有更新")
     c = Counter(r["type"] for r in rows)
